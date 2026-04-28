@@ -8,7 +8,15 @@ description: |
   quotes and em dashes, clickable TOC, diagonal DRAFT watermark. Not a draft
   artifact — a finished artifact. Use when asked to "make a PDF", "export to
   PDF", "turn this markdown into a PDF", or "generate a document". (gstack)
-  Voice triggers (speech-to-text aliases): "make this a pdf", "make it a pdf", "export to pdf", "turn this into a pdf", "turn this markdown into a pdf", "generate a pdf", "make a pdf from", "pdf this markdown".
+voice-triggers:
+  - "make this a pdf"
+  - "make it a pdf"
+  - "export to pdf"
+  - "turn this into a pdf"
+  - "turn this markdown into a pdf"
+  - "generate a pdf"
+  - "make a pdf from"
+  - "pdf this markdown"
 triggers:
   - markdown to pdf
   - generate pdf
@@ -44,6 +52,8 @@ REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_FIRST_RUN_COMPLETE=$_LAKE_SEEN
+echo "FIRST_RUN_COMPLETE: $_FIRST_RUN_COMPLETE"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
@@ -152,7 +162,9 @@ touch ~/.gstack/.completeness-intro-seen
 
 Only run `open` if yes. Always run `touch`.
 
-If `TEL_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: ask telemetry once via AskUserQuestion:
+**First-run gate:** `FIRST_RUN_COMPLETE` is captured at session start and is **immutable for the entire session** — it does NOT change when the lake intro fires during this session. If `FIRST_RUN_COMPLETE` is `no`: show the lake intro only, then skip all remaining onboarding prompts (telemetry, proactive, routing injection) for this session. They will surface in session 2+. The user can configure them early via `/plan-tune`.
+
+If `TEL_PROMPTED` is `no` AND `FIRST_RUN_COMPLETE` is `yes`: ask telemetry once via AskUserQuestion:
 
 > Help gstack get better. Share usage data only: skill, duration, crashes, stable device ID. No code, file paths, or repo names.
 

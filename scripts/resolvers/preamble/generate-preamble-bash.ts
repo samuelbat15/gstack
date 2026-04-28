@@ -35,6 +35,8 @@ REPO_MODE=\${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_FIRST_RUN_COMPLETE=$_LAKE_SEEN
+echo "FIRST_RUN_COMPLETE: $_FIRST_RUN_COMPLETE"
 _TEL=$(${ctx.paths.binDir}/gstack-config get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)

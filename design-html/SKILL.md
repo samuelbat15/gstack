@@ -11,7 +11,10 @@ description: |
   for each design type. Use when: "finalize this design", "turn this into HTML",
   "build me a page", "implement this design", or after any planning skill.
   Proactively suggest when user has approved a design or has a plan ready. (gstack)
-  Voice triggers (speech-to-text aliases): "build the design", "code the mockup", "make it real".
+voice-triggers:
+  - "build the design"
+  - "code the mockup"
+  - "make it real"
 triggers:
   - build the design
   - code the mockup
@@ -51,6 +54,8 @@ REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_FIRST_RUN_COMPLETE=$_LAKE_SEEN
+echo "FIRST_RUN_COMPLETE: $_FIRST_RUN_COMPLETE"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
@@ -159,7 +164,9 @@ touch ~/.gstack/.completeness-intro-seen
 
 Only run `open` if yes. Always run `touch`.
 
-If `TEL_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: ask telemetry once via AskUserQuestion:
+**First-run gate:** `FIRST_RUN_COMPLETE` is captured at session start and is **immutable for the entire session** — it does NOT change when the lake intro fires during this session. If `FIRST_RUN_COMPLETE` is `no`: show the lake intro only, then skip all remaining onboarding prompts (telemetry, proactive, routing injection) for this session. They will surface in session 2+. The user can configure them early via `/plan-tune`.
+
+If `TEL_PROMPTED` is `no` AND `FIRST_RUN_COMPLETE` is `yes`: ask telemetry once via AskUserQuestion:
 
 > Help gstack get better. Share usage data only: skill, duration, crashes, stable device ID. No code, file paths, or repo names.
 

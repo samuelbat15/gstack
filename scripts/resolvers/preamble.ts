@@ -30,6 +30,7 @@ import {
 
 // One-time onboarding prompts
 import { generateLakeIntro } from './preamble/generate-lake-intro';
+import { generateFirstRunGate } from './preamble/generate-first-run-gate';
 import { generateTelemetryPrompt } from './preamble/generate-telemetry-prompt';
 import { generateProactivePrompt } from './preamble/generate-proactive-prompt';
 import { generateRoutingInjection } from './preamble/generate-routing-injection';
@@ -90,6 +91,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateUpgradeCheck(ctx),
     generateWritingStyleMigration(ctx),
     generateLakeIntro(),
+    generateFirstRunGate(),
     generateTelemetryPrompt(ctx),
     generateProactivePrompt(ctx),
     generateRoutingInjection(ctx),
