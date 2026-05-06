@@ -114,7 +114,7 @@ In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`co
 
 ## Skill Invocation During Plan Mode
 
-If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first AskUserQuestion is the workflow entering plan mode, not a violation of it. AskUserQuestion satisfies plan mode's end-of-turn requirement. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
+If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first AskUserQuestion is the workflow entering plan mode, not a violation of it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If no variant is callable, fall back to writing the decision brief into the plan file as a `## Decisions to confirm` section + ExitPlanMode — never silently auto-decide. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
 If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
 
@@ -281,6 +281,16 @@ AI orchestrator (e.g., OpenClaw). In spawned sessions:
 
 ## AskUserQuestion Format
 
+### Tool resolution (read first)
+
+"AskUserQuestion" can resolve to two tools at runtime: the **host MCP variant** (e.g. `mcp__conductor__AskUserQuestion` — appears in your tool list when the host registers it) or the **native** Claude Code tool.
+
+**Rule:** if any `mcp__*__AskUserQuestion` variant is in your tool list, prefer it. Hosts may disable native AUQ via `--disallowedTools AskUserQuestion` (Conductor does, by default) and route through their MCP variant; calling native there silently fails. Same questions/options shape; same decision-brief format applies.
+
+**Fallback when neither variant is callable:** in plan mode, write the decision brief into the plan file as a `## Decisions to confirm` section + ExitPlanMode (the native "Ready to execute?" surfaces it). Outside plan mode, output the brief as prose and stop. **Never silently auto-decide** — only `/plan-tune` AUTO_DECIDE opt-ins authorize auto-picking.
+
+### Format
+
 Every AskUserQuestion is a decision brief and must be sent as tool_use, not prose.
 
 ```
@@ -335,6 +345,35 @@ _GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 _BRAIN_REMOTE_FILE="$HOME/.gstack-brain-remote.txt"
 _BRAIN_SYNC_BIN="~/.claude/skills/gstack/bin/gstack-brain-sync"
 _BRAIN_CONFIG_BIN="~/.claude/skills/gstack/bin/gstack-config"
+
+# /sync-gbrain context-load: teach the agent to use gbrain when it's available.
+# Mutually exclusive variants per /plan-eng-review §4. Empty string when gbrain
+# is not configured (zero context cost for non-gbrain users).
+_GBRAIN_CONFIG="$HOME/.gbrain/config.json"
+if [ -f "$_GBRAIN_CONFIG" ] && command -v gbrain >/dev/null 2>&1; then
+  _GBRAIN_VERSION_OK=$(gbrain --version 2>/dev/null | grep -c '^gbrain ' || echo 0)
+  if [ "$_GBRAIN_VERSION_OK" -gt 0 ] 2>/dev/null; then
+    _SYNC_STATE="$_GSTACK_HOME/.gbrain-sync-state.json"
+    _CWD_PAGES=0
+    if [ -f "$_SYNC_STATE" ]; then
+      # Flatten newlines so the regex works against pretty-printed JSON too.
+      _CWD_PAGES=$(tr -d '\n' < "$_SYNC_STATE" 2>/dev/null \
+        | grep -o '"name": *"code"[^}]*"detail": *{[^}]*"page_count": *[0-9]*' \
+        | grep -o '"page_count": *[0-9]*' | grep -o '[0-9]\+' | head -1)
+      _CWD_PAGES=${_CWD_PAGES:-0}
+    fi
+    if [ "$_CWD_PAGES" -gt 0 ] 2>/dev/null; then
+      echo "GBrain configured. Prefer \`gbrain search\`/\`gbrain query\` over Grep for"
+      echo "semantic questions; use \`gbrain code-def\`/\`code-refs\`/\`code-callers\` for"
+      echo "symbol-aware code lookup. See \"## GBrain Search Guidance\" in CLAUDE.md."
+      echo "Run /sync-gbrain to refresh."
+    else
+      echo "GBrain configured but this repo isn't indexed yet. Run \`/sync-gbrain --full\`"
+      echo "before relying on \`gbrain search\` for code questions in this repo."
+      echo "Falls back to Grep until indexed."
+    fi
+  fi
+fi
 
 _BRAIN_SYNC_MODE=$("$_BRAIN_CONFIG_BIN" get gbrain_sync_mode 2>/dev/null || echo off)
 
@@ -990,7 +1029,7 @@ For `/setup-gbrain --repo` invocations, execute ONLY Step 6 and exit.
 
 ---
 
-## Step 7: Offer gstack-brain-sync
+## Step 7: Offer gstack-brain-sync + wire it into gbrain
 
 Separate AskUserQuestion: "Also sync your gstack session memory (learnings,
 plans, retros) to a private git repo that gbrain can index across machines?"
@@ -1008,6 +1047,106 @@ If yes:
 # or "full" if user picked yes-full
 ```
 
+Then wire the brain repo into gbrain so its content is searchable from any
+gbrain client (this Claude Code session, future Macs, optional cloud agents).
+The helper creates a `git worktree` of `~/.gstack/`, registers it as a
+federated source on the user's gbrain (Supabase or PGLite), and runs an
+initial `gbrain sync`. Local-Mac only. No cloud agent required. Subsequent
+skill runs trigger incremental sync via the existing skill-end push hook.
+
+Capture the database URL out of `~/.gbrain/config.json` first and pass it
+explicitly so the wireup is robust against any other process rewriting
+`~/.gbrain/config.json` mid-sync (e.g., concurrent `gbrain init` runs
+elsewhere on the machine):
+
+```bash
+GBRAIN_URL=$(python3 -c "
+import json, os, sys
+try:
+    c = json.load(open(os.path.expanduser('~/.gbrain/config.json')))
+    print(c.get('database_url', ''))
+except Exception:
+    pass
+")
+~/.claude/skills/gstack/bin/gstack-gbrain-source-wireup --strict \
+  ${GBRAIN_URL:+--database-url "$GBRAIN_URL"}
+```
+
+`--strict` exits non-zero on missing prereqs (gbrain not installed, < 0.18.0,
+or no `~/.gstack/.git` yet) so the user sees the failure rather than silently
+ending up with an unwired brain. On non-zero exit, surface the helper's
+output and STOP per skill rules — search-across-machines won't work until
+the prereq is fixed.
+
+---
+
+## Step 7.5: Transcript & memory ingest gate
+
+After memory sync is wired (Step 7) but before persisting the CLAUDE.md
+config (Step 8), offer to bring this Mac's coding-agent transcripts +
+curated `~/.gstack/` artifacts into gbrain so the retrieval surface
+(per-skill manifests, salience block) has data to surface.
+
+Run the probe to size the operation:
+```bash
+~/.claude/skills/gstack/bin/gstack-memory-ingest --probe
+```
+
+Read the output. If `Total files in window: 0`, skip — there's nothing
+to ingest. Set `gstack-config set transcript_ingest_mode incremental`
+silently and continue to Step 8.
+
+If `New (never ingested)` is < 200 AND total bytes are < 100MB: silent
+bulk via `gstack-memory-ingest --bulk --quiet`. Set
+`transcript_ingest_mode=incremental` and continue.
+
+Otherwise (the "many transcripts on disk" path): AskUserQuestion with
+the exact counts AND the value promise. Default scope is **current repo
+only, last 90 days**:
+
+> "Found <N_repo> transcripts in THIS repo (<repo-slug>) over the last
+> 90 days, plus <N_other> across other repos on this machine (<bytes>
+> total if all ingested). Ingest THIS repo's transcripts into gbrain?
+>
+> What you get after this: every gstack skill auto-loads recent salience
+> from your past sessions in this repo, so the agent finds your prior
+> work without you describing it. You can query 'what was I doing on
+> day X' and get a real answer. Per-session pages are searchable,
+> taggable, and deletable. Secret scanning runs before any push.
+>
+> What stays the same: nothing leaves your machine unless gbrain sync
+> is enabled (Step 7). Per-repo trust policies still apply.
+>
+> Multi-Mac note: if you HAVE enabled brain sync (Step 7), these
+> transcript pages will sync across your Macs. Caveat: deleting a
+> transcript page later removes it from gbrain but git history retains
+> it in prior commits. Use `gstack-transcript-prune` to delete in bulk;
+> use `git filter-repo` on the brain remote for hard-delete from
+> history."
+
+Options:
+- A) Yes — this repo, last 90 days (recommended; ~est min)
+- B) Yes — this repo, ALL history
+- C) Yes — this repo + other repos on this machine
+- D) Skip historical, track new from now (`transcript_ingest_mode=incremental`)
+- E) Never ingest transcripts (`transcript_ingest_mode=off`)
+
+After answer:
+```bash
+~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <choice>
+~/.claude/skills/gstack/bin/gstack-gbrain-sync --full --no-brain-sync
+```
+(`--no-brain-sync` because Step 7 already wired that path; this just
+runs the code import + memory ingest stages. Brain-sync will run on the
+next preamble hook.)
+
+If A/D/E, ingest is incremental from this point on; preamble-boundary
+hook runs `gstack-gbrain-sync --incremental --quiet` on every skill
+start (cheap mtime fast-path).
+
+Reference doc for users: `setup-gbrain/memory.md` (linked from CLAUDE.md
+Step 8).
+
 ---
 
 ## Step 8: Persist `## GBrain Configuration` in CLAUDE.md
@@ -1024,6 +1163,50 @@ Find-and-replace (or append) this section in CLAUDE.md:
 - Current repo policy: {read-write|read-only|deny|unset}
 ```
 
+**After Step 9 (smoke test) passes, also write the `## GBrain Search Guidance`
+block** so the coding agent learns when to prefer `gbrain` over Grep. This
+block is gated on the smoke test passing — write the Configuration block
+first (so the user knows what state they're in even if the smoke test fails),
+then return here after Step 9 and write the guidance block only if smoke
+test succeeded.
+
+When Step 9 passes, find-and-replace (or append) this block. Use HTML-comment
+delimiters so removal regex is unambiguous and never eats user content. The
+block content is machine-AGNOSTIC — no engine type, no page counts, no
+last-sync time. Machine state stays in the Configuration block above.
+
+```markdown
+## GBrain Search Guidance (configured by /sync-gbrain)
+<!-- gstack-gbrain-search-guidance:start -->
+
+GBrain is set up and synced on this machine. The agent should prefer gbrain
+over Grep when the question is semantic or when you don't know the exact
+identifier yet. Two indexed corpora available via the `gbrain` CLI:
+- This repo's code (registered as `gstack-code-<repo>` source).
+- `~/.gstack/` curated memory (registered as `gstack-brain-<user>` source via
+  the existing federation pipeline).
+
+Prefer gbrain when:
+- "Where is X handled?" / semantic intent, no exact string yet:
+    `gbrain search "<terms>"` or `gbrain query "<question>"`
+- "Where is symbol Y defined?" / symbol-based code questions:
+    `gbrain code-def <symbol>` or `gbrain code-refs <symbol>`
+- "What calls Y?" / "What does Y depend on?":
+    `gbrain code-callers <symbol>` / `gbrain code-callees <symbol>`
+- "What did we decide last time?" / past plans, retros, learnings:
+    `gbrain search "<terms>" --source gstack-brain-<user>`
+
+Grep is still right for known exact strings, regex, multiline patterns, and
+file globs. The brain auto-syncs incrementally on every gstack skill start.
+Run `/sync-gbrain` to force-refresh, `/sync-gbrain --full` for full reindex.
+
+<!-- gstack-gbrain-search-guidance:end -->
+```
+
+If Step 9 smoke test fails, skip the guidance block write entirely. The user's
+next `/sync-gbrain` run will re-evaluate capability and write the block when
+the round-trip works.
+
 ---
 
 ## Step 9: Smoke test
@@ -1036,6 +1219,48 @@ gbrain search "smoke test" | grep -i "$SLUG"
 
 Confirms the round trip. On failure, surface `gbrain doctor --json` output
 and STOP with a NEEDS_CONTEXT escalation.
+
+---
+
+## Step 10: GREEN/YELLOW/RED verdict block (idempotent doctor output)
+
+After Steps 1-9 complete, summarize. Re-running `/setup-gbrain` on a
+configured Mac is a first-class doctor path: every step detects existing
+state, repairs only what's missing, and reports here.
+
+```bash
+~/.claude/skills/gstack/bin/gstack-gbrain-detect 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-config get transcript_ingest_mode 2>/dev/null || echo "off"
+~/.claude/skills/gstack/bin/gstack-config get gbrain_sync_mode 2>/dev/null || echo "off"
+[ -f ~/.gstack/.gbrain-sync-state.json ] && cat ~/.gstack/.gbrain-sync-state.json || echo "{}"
+```
+
+Print the verdict block. Each row is `[OK]/[FIX]/[WARN]/[ERR]` — see
+template below; substitute your detect outputs:
+
+```
+gbrain status: GREEN
+
+  CLI ............. OK   <gbrain version>
+  Engine .......... OK   <pglite|supabase> at <path>
+  doctor .......... OK
+  MCP ............. OK   registered (user scope)
+  Repo policy ..... OK   <read-write|read-only|deny>
+  Code import ..... OK   <last_imported_head>
+  Memory sync ..... OK   <gbrain_sync_mode> to <remote>
+  Transcripts ..... OK   <N> sessions, last ingest <when>
+  CLAUDE.md ....... OK
+  Smoke test ...... OK   put → search → delete round-trip
+
+Run `/setup-gbrain` again any time gbrain feels off; it's safe and idempotent.
+```
+
+If any row is YELLOW or RED, the verdict line says so and the failing rows
+surface a one-line "next action" (e.g.,
+`Engine .......... ERR  PGLite corrupt — run \`gbrain restore-from-sync\` (V1.5)`).
+For V1, restore-from-sync is a V1.5 P0 cross-repo TODO; until it ships,
+the user's brain remote (with brain-sync enabled) holds curated artifacts
+as markdown + git, recoverable manually via `gbrain import` from a clone.
 
 ---
 
