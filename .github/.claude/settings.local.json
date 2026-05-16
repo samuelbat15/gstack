@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(gstack-setup-browser-cookies)",
+      "Skill(gstack-setup-browser-cookies:*)",
+      "Bash(gh repo *)",
+      "Read(//c/Users/aiell/Projects/computer-use-mcp/**)",
+      "Read(//c/Users/aiell/Projects/computer-use-mcp//**)",
+      "Bash(npm run *)",
+      "Bash(/c/Users/aiell/AppData/Roaming/npm/claude mcp *)",
+      "Bash(node -e \"const n = require\\('@nut-tree-fork/nut-js'\\); console.log\\('nut-js OK'\\)\")",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/k cd /d C:\\\\Users\\\\aiell\\\\Projects\\\\SOUVERAIN_OS && set PYTHONUTF8=1 && python starboxe_dashboard.py\" -WindowStyle Normal)",
+      "Bash(pip install *)",
+      "Bash(pterm download *)",
+      "Read(//c/pinokio/api//**)",
+      "Bash(pterm search *)",
+      "Bash(python3 -c ' *)",
+      "Read(//c/Users/aiell/Projects/SOUVERAIN_OS/assets/**)",
+      "Bash(/c/Users/aiell/.claude/skills/gstack/browse/dist/browse goto *)",
+      "Bash(/c/Users/aiell/.claude/skills/gstack/browse/dist/browse screenshot *)",
+      "Bash(/c/Users/aiell/.claude/skills/gstack/browse/dist/browse snapshot *)",
+      "Bash(python3)",
+      "Read(//c/Users/aiell/Projects/SOUVERAIN_OS/**)",
+      "Bash(python nanocorp_vault.py)",
+      "Bash(python3 nanocorp_vault.py)",
+      "PowerShell(Get-Command uv -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
+      "Read(//c/Users/aiell/Projects/deer-flow/backend/**)",
+      "Read(//c/Users/aiell/Projects/STARBOXE_SYSTEM/**)",
+      "Read(//c/Users/aiell/Documents/STARBOXE-Notes/**)",
+      "PowerShell(docker port stx_engine 2>&1)",
+      "Bash(head -30 /c/Users/aiell/Projects/gstack/ETHOS.md 2>/dev/null || echo \"pas trouvé\")",
+      "Read(//c/Users/aiell/Projects/gstack/**)",
+      "Bash(python3 -m py_compile \"/c/Users/aiell/Documents/STARBOXE-Notes/09_Ressources/Scripts/StarboxeBot.py\")",
+      "Skill(gstack-browse)",
+      "Skill(gstack-browse:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\aiell\\Projects\\STX_SYSTEM"
+    ]
+  }
+}

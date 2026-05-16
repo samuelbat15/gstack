@@ -4,12 +4,14 @@ preamble-tier: 2
 version: 1.0.0
 description: |
   Systematic debugging with root cause investigation. Four phases: investigate,
-  analyze, hypothesize, implement. Iron Law: no fixes without root cause.
+  analyze, hypothesize, implement. Iron Law: always find the root cause before
+  writing any fix. Once the root cause is confirmed, fix it with the smallest
+  possible change.
   Use when asked to "debug this", "fix this bug", "why is this broken",
   "investigate this error", or "root cause analysis".
-  Proactively invoke this skill (do NOT debug directly) when the user reports
-  errors, 500 errors, stack traces, unexpected behavior, "it was working
-  yesterday", or is troubleshooting why something stopped working. (gstack)
+  Always invoke this skill instead of directly modifying code when the user
+  reports errors such as 500 errors, stack traces, broken features, or
+  troubleshooting scenarios like "it was working yesterday". (gstack)
 allowed-tools:
   - Bash
   - Read
@@ -67,9 +69,11 @@ gbrain:
 
 ## Iron Law
 
-**NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.**
+**Step 1: Find the root cause. Step 2: Fix only the root cause.**
 
-Fixing symptoms creates whack-a-mole debugging. Every fix that doesn't address root cause makes the next bug harder to find. Find the root cause, then fix it.
+These two steps are sequential, not conflicting. The law prohibits jumping to Step 2 without completing Step 1. Once root cause is confirmed, implement the smallest fix that eliminates it — not a workaround, not a symptom patch.
+
+Fixing symptoms creates whack-a-mole debugging. Every fix without root cause makes the next bug harder to find.
 
 ---
 
@@ -181,7 +185,7 @@ Once root cause is confirmed:
 
 1. **Fix the root cause, not the symptom.** The smallest change that eliminates the actual problem.
 
-2. **Minimal diff:** Fewest files touched, fewest lines changed. Resist the urge to refactor adjacent code.
+2. **Minimal diff:** Limit changes to the smallest number of files and lines necessary to resolve the root cause. Do not refactor adjacent code unless it is directly causing the bug.
 
 3. **Write a regression test** that:
    - **Fails** without the fix (proves the test is meaningful)
