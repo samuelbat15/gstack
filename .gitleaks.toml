@@ -1,0 +1,27 @@
+# gitleaks configuration — prevents secret leaks in git commits
+# Docs: https://github.com/gajus/gitleaks
+
+title = "gstack secret scanner"
+
+[extend]
+useDefault = true
+
+[[allowlist.regexes]]
+description = "Test fixtures with fake keys"
+regex = '''(sk-abcdefghij|sk-12345|fake|dummy|test-key|oai-secret|AKIA_FAKE)'''
+
+[[allowlist.regexes]]
+description = "SENSITIVE_COOKIE_VALUE regex pattern in source code"
+regex = '''SENSITIVE_COOKIE_VALUE.*sk-'''
+
+[[allowlist.regexes]]
+description = "Placeholders in .env.example"
+regex = '''(your_|changeme|<your|TODO|placeholder)'''
+
+[[allowlist.paths]]
+description = "Generated lockfiles"
+regex = '''bun\.lock'''
+
+[[allowlist.paths]]
+description = "Test fixtures"
+regex = '''test/fixtures/'''

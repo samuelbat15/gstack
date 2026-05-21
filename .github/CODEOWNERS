@@ -1,0 +1,13 @@
+# CODEOWNERS — requires review from listed owners before merge
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# CI/CD workflows — any change requires owner approval to prevent supply chain attacks
+.github/workflows/ @samuelbat15
+
+# Security-sensitive config
+.gitleaks.toml @samuelbat15
+.github/CODEOWNERS @samuelbat15
+
+# Dependency files — lockfile changes need review
+package.json @samuelbat15
+bun.lock @samuelbat15
