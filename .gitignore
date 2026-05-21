@@ -5,6 +5,7 @@ browse/dist/
 design/dist/
 make-pdf/dist/
 bin/gstack-global-discover
+bin/*.exe
 .gstack/
 .claude/skills/
 .claude/scheduled_tasks.lock
