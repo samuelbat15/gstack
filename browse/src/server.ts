@@ -64,6 +64,7 @@ const AUTH_TOKEN = crypto.randomUUID();
 initRegistry(AUTH_TOKEN);
 const BROWSE_PORT = parseInt(process.env.BROWSE_PORT || '0', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.BROWSE_IDLE_TIMEOUT || '1800000', 10); // 30 min
+const BROWSE_EXTENSION_ID = process.env.BROWSE_EXTENSION_ID || ''; // optional: tighten Origin check
 
 /**
  * Port the local listener bound to. Set once the daemon picks a port.
@@ -1145,14 +1146,28 @@ async function start() {
           mode: browserManager.getConnectionMode(),
           uptime: Math.floor((Date.now() - startTime) / 1000),
           tabs: browserManager.getTabCount(),
-          // Auth token for extension bootstrap. Safe: /health is localhost-only.
-          // Previously served unconditionally, but that leaks the token if the
-          // server is tunneled to the internet (ngrok, SSH tunnel).
-          // In headed mode the server is always local, so return token unconditionally
-          // (fixes Playwright Chromium extensions that don't send Origin header).
-          ...(browserManager.getConnectionMode() === 'headed' ||
-              req.headers.get('origin')?.startsWith('chrome-extension://')
-              ? { token: AUTH_TOKEN } : {}),
+          // Auth token for extension bootstrap. Safe: /health is localhost-only
+          // (not on the tunnel allowlist — dual-listener design keeps it off ngrok).
+          // In headed mode, return token only when there is no Origin header
+          // (extensions making internal requests don't send one) or when the
+          // Origin matches the expected chrome-extension:// prefix/ID.
+          // Requiring the exact BROWSE_EXTENSION_ID (when set) prevents local
+          // processes from spoofing a chrome-extension:// Origin to harvest the token.
+          ...((() => {
+            const origin = req.headers.get('origin');
+            const mode = browserManager.getConnectionMode();
+            // headless mode: only grant to verified extension origins
+            if (mode !== 'headed') {
+              if (!origin?.startsWith('chrome-extension://')) return false;
+              if (BROWSE_EXTENSION_ID && origin !== `chrome-extension://${BROWSE_EXTENSION_ID}`) return false;
+              return true;
+            }
+            // headed mode: grant when no Origin (extension internal) or verified extension
+            if (!origin) return true;
+            if (!origin.startsWith('chrome-extension://')) return false;
+            if (BROWSE_EXTENSION_ID && origin !== `chrome-extension://${BROWSE_EXTENSION_ID}`) return false;
+            return true;
+          })() ? { token: AUTH_TOKEN } : {}),
           // The chat queue is gone — Terminal pane is the sole sidebar
           // surface. Keep `chatEnabled: false` so any older extension
           // build still treats the chat input as disabled.
