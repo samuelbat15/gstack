@@ -774,3 +774,20 @@ Key routing rules:
 - Ship/deploy/PR → invoke /ship or /land-and-deploy
 - Save progress → invoke /context-save
 - Resume context → invoke /context-restore
+
+## Deploy Configuration (configured by /setup-deploy)
+
+- Platform: GitHub (git push to main — users pull via ./setup)
+- Production URL: `https://github.com/garrytan/gstack` (source repo)
+- Deploy workflow: auto — users run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && bun run build`
+- Deploy status command: `gh run list --branch main --limit 3` (CI checks)
+- Merge method: squash
+- Project type: CLI / skill library (no web server)
+- Post-deploy health check: `bun test` (free tests, <2s)
+
+### Custom deploy hooks
+
+- Pre-merge: `bun test && bun run test:evals`
+- Deploy trigger: automatic on push to main (users pull on next session)
+- Deploy status: `gh run list --branch main --status completed --limit 1`
+- Health check: `bun test` (smoke test, no HTTP endpoint)

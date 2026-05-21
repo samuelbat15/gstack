@@ -36,3 +36,6 @@ supabase/.temp/
 
 # Throughput analysis — local-only, regenerate via scripts/garry-output-comparison.ts
 docs/throughput-*.json
+
+# Playwright MCP session artifacts
+.github/.playwright-mcp/

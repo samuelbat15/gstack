@@ -9,7 +9,6 @@
       "Bash(npm run *)",
       "Bash(/c/Users/aiell/AppData/Roaming/npm/claude mcp *)",
       "Bash(node -e \"const n = require\\('@nut-tree-fork/nut-js'\\); console.log\\('nut-js OK'\\)\")",
-      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/k cd /d C:\\\\Users\\\\aiell\\\\Projects\\\\SOUVERAIN_OS && set PYTHONUTF8=1 && python starboxe_dashboard.py\" -WindowStyle Normal)",
       "Bash(pip install *)",
       "Bash(pterm download *)",
       "Read(//c/pinokio/api//**)",
@@ -28,15 +27,22 @@
       "Read(//c/Users/aiell/Projects/deer-flow/backend/**)",
       "Read(//c/Users/aiell/Projects/STARBOXE_SYSTEM/**)",
       "Read(//c/Users/aiell/Documents/STARBOXE-Notes/**)",
-      "PowerShell(docker port stx_engine 2>&1)",
       "Bash(head -30 /c/Users/aiell/Projects/gstack/ETHOS.md 2>/dev/null || echo \"pas trouvé\")",
       "Read(//c/Users/aiell/Projects/gstack/**)",
       "Bash(python3 -m py_compile \"/c/Users/aiell/Documents/STARBOXE-Notes/09_Ressources/Scripts/StarboxeBot.py\")",
       "Skill(gstack-browse)",
-      "Skill(gstack-browse:*)"
+      "Skill(gstack-browse:*)",
+      "Read(//c/Users/aiell/Projects/StarFlow/**)",
+      "Bash(gh auth *)",
+      "Bash(python3 C:/Users/aiell/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/src/ui-ux-pro-max/scripts/search.py 'boxing sport fitness club marketing sales page dark vibrant energetic' --design-system -p Starboxe29)",
+      "mcp__claude_ai_Canva__generate-design"
     ],
     "additionalDirectories": [
       "C:\\Users\\aiell\\Projects\\STX_SYSTEM"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "memory-service"
+  ]
 }

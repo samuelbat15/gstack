@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Canva__create-design-from-candidate",
+      "Bash(find \"/c/Users/aiell/Projects/STX_SYSTEM\" -type f 2>/dev/null | sort)",
+      "Read(//c/Users/aiell/Projects/STX_SYSTEM/**)",
+      "Bash(docker --version)",
+      "Bash(docker port *)",
+      "Bash(gh secret list *)",
+      "Bash(gstack-config *)",
+      "Bash(gh run watch *)"
+    ]
+  }
+}
