@@ -1,0 +1,5 @@
+# Playwright MCP session files
+.playwright-mcp/
+
+# Vault (données financières sensibles)
+vault/

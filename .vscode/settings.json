@@ -1,0 +1,7 @@
+{
+  "python.languageServer": "None",
+  "python.analysis.indexing": false,
+  "python.analysis.diagnosticMode": "off",
+  "typescript.preferences.quoteStyle": "single",
+  "editor.formatOnSave": false
+}
