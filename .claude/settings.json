@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -NonInteractive -Command \"$f=$env:CLAUDE_TOOL_INPUT_FILE; if($f -match '\\.(ts|js|json)$'){Write-Output '🔍 Vérification secrets dans le fichier modifié...'; $content=Get-Content $f -Raw -ErrorAction SilentlyContinue; if($content -match '(sk-[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16}|ghp_[a-zA-Z0-9]{36}|AIza[0-9A-Za-z_-]{35})'){Write-Output '⚠️  ATTENTION: Possible clé API détectée dans le fichier!'; exit 2}}\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -NonInteractive -Command \"Write-Output ''; Write-Output '🧪 Tests rapides gstack...'; $result = bun test 2>&1 | Select-String 'pass|fail|error' | Select-Object -Last 3; Write-Output $result\""
+          }
+        ]
+      }
+    ]
+  }
+}
