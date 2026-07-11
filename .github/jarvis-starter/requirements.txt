@@ -1,0 +1,5 @@
+# Optional dependencies for voice mode.
+# Text mode works with the Python standard library only.
+pyttsx3>=2.90
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.14

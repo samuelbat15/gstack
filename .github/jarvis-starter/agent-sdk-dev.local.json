@@ -1,0 +1,22 @@
+{
+  "name": "jarvis-graphity-local",
+  "plugin": "agent-sdk-dev",
+  "runtime": "graphity-local",
+  "entrypoint": "python jarvis.py --text",
+  "state_dir": "./data/graphity",
+  "capabilities": [
+    "local_agent_revisions",
+    "manual_traffic_split",
+    "graph_memory",
+    "safe_tool_router",
+    "ollama_local_models",
+    "openai_responses"
+  ],
+  "commands": {
+    "start": "python jarvis.py --text",
+    "graphity_init": "python graphity_cli.py init",
+    "graphity_list": "python graphity_cli.py list",
+    "graphity_traffic": "python graphity_cli.py traffic",
+    "graphity_split_50_50": "python graphity_cli.py split 1=50 2=50"
+  }
+}

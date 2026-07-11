@@ -1,0 +1,16 @@
+{
+  "assistant_name": "Jarvis",
+  "confirm_actions": true,
+  "sites": {
+    "google": "https://www.google.com",
+    "youtube": "https://www.youtube.com",
+    "github": "https://github.com",
+    "chatgpt": "https://chatgpt.com"
+  },
+  "apps": {
+    "bloc-notes": "notepad.exe",
+    "notepad": "notepad.exe",
+    "calculatrice": "calc.exe",
+    "calculator": "calc.exe"
+  }
+}

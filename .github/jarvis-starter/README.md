@@ -1,0 +1,146 @@
+# Jarvis Starter
+
+Ce dossier contient une vraie base de depart pour un assistant type Jarvis:
+voix optionnelle, cerveau IA optionnel, agents agentic, memoire locale, actions
+locales limitees par liste blanche, et confirmation avant d'ouvrir un site ou
+une application.
+
+Ce n'est pas le Jarvis d'Iron Man complet. La vraie solution se construit par
+couches: entree vocale, raisonnement IA, outils autorises, memoire, securite,
+puis integrations maison par maison ou poste par poste.
+
+## Lancement rapide
+
+Depuis PowerShell:
+
+```powershell
+cd C:\Users\aiell\Projects\gstack\.github\jarvis-starter
+python jarvis.py --text
+```
+
+Le mode texte fonctionne sans installation. Sans moteur IA, Jarvis reste en
+local basique: commandes directes, notes, heure, statut, ouverture d'outils
+autorises. Tu peux deja essayer:
+
+```text
+aide
+heure
+statut
+note appeler Sam demain matin
+mes notes
+ouvre youtube
+cherche meteo paris
+agent note que je dois appeler Sam puis donne moi l'heure
+```
+
+Entre les commandes sans guillemets. Quand Jarvis affiche `[o/N]`, reponds
+seulement `o` pour confirmer ou `n` pour annuler, puis tape ta prochaine commande.
+Si tu tapes une nouvelle commande pendant une confirmation, Jarvis annule
+l'action en attente et passe a cette nouvelle commande.
+
+## Mode local agentic avec Ollama
+
+Oui, tu peux l'utiliser en local. Pour que le cerveau IA soit aussi local, il
+faut un modele local. Le chemin le plus simple est Ollama.
+
+1. Installe Ollama.
+2. Lance ou telecharge un modele, par exemple `llama3.1:8b`.
+3. Copie `env.template` vers `.env`.
+4. Configure:
+
+```env
+JARVIS_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+Puis lance:
+
+```powershell
+python jarvis.py --text
+```
+
+Dans ce mode, les demandes libres passent par une boucle agentic:
+
+```text
+Demande utilisateur -> agent planificateur -> JSON tool_calls -> outils locaux
+-> observations -> reponse finale
+```
+
+Les outils agentic actuels sont:
+
+```text
+get_time
+get_status
+add_note
+list_notes
+search_web
+open_site
+launch_app
+```
+
+Les actions externes restent confirmees par `[o/N]`.
+
+## Activer l'IA
+
+1. Copie `env.template` vers `.env`.
+2. Pour le cloud OpenAI, mets ta cle dans `OPENAI_API_KEY`.
+3. Lance:
+
+```powershell
+python jarvis.py --text
+```
+
+Le prototype utilise l'API Responses d'OpenAI via HTTP standard quand
+`OPENAI_API_KEY` est presente. Le modele par defaut est configure dans `.env`
+avec `OPENAI_MODEL`.
+
+`JARVIS_PROVIDER=auto` choisit OpenAI si une cle est presente, sinon Ollama si
+`OLLAMA_MODEL` est configure, sinon le mode local basique.
+
+## Activer la voix
+
+Le mode voix est optionnel parce que les micros et pilotes Windows varient selon
+les machines.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python jarvis.py --voice
+```
+
+Si l'installation de `PyAudio` echoue, garde le mode texte ou installe une roue
+compatible avec ta version de Python. Le coeur du systeme reste le meme.
+
+## Ajouter des actions
+
+Modifie `config.json`.
+
+```json
+{
+  "sites": {
+    "youtube": "https://www.youtube.com"
+  },
+  "apps": {
+    "bloc-notes": "notepad.exe"
+  }
+}
+```
+
+Ne mets jamais de commandes destructrices dans cette liste. Un vrai Jarvis doit
+avoir moins de pouvoirs par defaut, puis gagner des permissions une par une.
+
+## Architecture reelle
+
+Pour aller jusqu'a une solution de production:
+
+1. Wake word local: detection de "Jarvis" hors ligne.
+2. STT: transcription locale ou cloud.
+3. LLM local ou cloud: raisonnement, planification, contexte personnel.
+4. Agents agentic: planificateur, routeur d'outils, observateur, finaliseur.
+5. Memoire: notes, preferences, historique utile, avec suppression possible.
+6. TTS: voix naturelle.
+7. Supervision: confirmations, logs, mode lecture seule, kill switch.
+
+La regle d'or: l'IA propose, le code verifie, l'utilisateur autorise.
