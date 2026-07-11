@@ -69,3 +69,35 @@ class TestDeduplication:
 
         assert result == "Bonjour"
         assert len(jarvis.ai.calls) == 1
+
+
+class TestSynthesis:
+    def test_six_turns_then_forced_synthesis(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+        looping_turn = agent_turn([{"tool": "get_time", "args": {}}])
+        jarvis.ai = ScriptedAI(
+            [looping_turn] * 6 + ["Il est probablement l'heure de conclure."]
+        )
+
+        result = jarvis.run_agentic("boucle sans fin")
+
+        assert result == "Il est probablement l'heure de conclure."
+        assert len(jarvis.ai.calls) == 7
+
+    def test_force_final_synthesis_returns_answer(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+        jarvis.ai = ScriptedAI(["Reponse de synthese."])
+
+        result = jarvis.force_final_synthesis("demande initiale", ["obs 1", "obs 2"])
+
+        assert result == "Reponse de synthese."
+
+    def test_force_final_synthesis_falls_back_on_empty_answer(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+        jarvis.ai = ScriptedAI([""])
+
+        result = jarvis.force_final_synthesis("demande initiale", ["obs 1", "obs 2"])
+
+        assert "Je n'ai pas reussi a conclure" in result
+        assert "obs 1" in result
+        assert "obs 2" in result

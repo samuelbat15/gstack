@@ -658,7 +658,7 @@ class Jarvis:
 
         observations: list[str] = []
         seen_calls: set[str] = set()
-        for _ in range(3):
+        for _ in range(6):
             prompt = self.build_agent_prompt(user_text, observations)
             raw_answer = self.ai.ask(prompt, instructions=AGENTIC_SYSTEM_INSTRUCTIONS)
             payload = extract_json_object(raw_answer)
@@ -693,7 +693,23 @@ class Jarvis:
             if final:
                 observations.append(f"Message provisoire du planificateur: {final}")
 
-        return "J'ai atteint la limite de boucle agentic. Voici les observations:\n" + "\n".join(observations)
+        return self.force_final_synthesis(user_text, observations)
+
+    def force_final_synthesis(self, user_text: str, observations: list[str]) -> str:
+        observation_block = "\n".join(observations) if observations else "Aucune observation."
+        prompt = (
+            f"Demande initiale de l'utilisateur:\n{user_text}\n\n"
+            "Observations collectees (limite de tours d'outils atteinte, "
+            "plus aucun appel d'outil possible):\n"
+            f"{observation_block}\n\n"
+            "Donne une reponse finale courte et utile en francais, en te "
+            "basant uniquement sur ces observations. Pas de JSON, juste la "
+            "reponse en texte brut."
+        )
+        answer = self.ai.ask(prompt, instructions=SYSTEM_INSTRUCTIONS).strip()
+        if answer:
+            return answer
+        return "Je n'ai pas reussi a conclure. Voici les observations:\n" + observation_block
 
     def build_agent_prompt(self, user_text: str, observations: list[str]) -> str:
         notes = self.memory.recent_notes()
