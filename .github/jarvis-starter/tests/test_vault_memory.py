@@ -67,3 +67,55 @@ class TestRemember:
         result = memory.remember("un fait")
         assert "erreur graphify" in result
         assert "boom" in result
+
+
+class TestRecall:
+    def test_graph_missing(self, tmp_path):
+        memory = VaultMemory(tmp_path)
+        result = memory.recall("campagne SEO")
+        assert "graphe absent" in result
+
+    def test_empty_query(self, tmp_path):
+        memory = VaultMemory(tmp_path)
+        result = memory.recall("   ")
+        assert "requete vide" in result
+
+    def test_success_returns_stdout(self, tmp_path, monkeypatch):
+        graph_dir = tmp_path / ".graphify"
+        graph_dir.mkdir()
+        (graph_dir / "graph.json").write_text("{}", encoding="utf-8")
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return make_completed_process(returncode=0, stdout="entity:seo -> campagne 2026")
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.recall("campagne SEO")
+        assert result == "entity:seo -> campagne 2026"
+
+    def test_truncates_long_output(self, tmp_path, monkeypatch):
+        graph_dir = tmp_path / ".graphify"
+        graph_dir.mkdir()
+        (graph_dir / "graph.json").write_text("{}", encoding="utf-8")
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return make_completed_process(returncode=0, stdout="x" * 5000)
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.recall("campagne SEO")
+        assert result.endswith("[tronque]")
+        assert len(result) <= 4000 + len(" [tronque]")
+
+    def test_graphify_not_found(self, tmp_path, monkeypatch):
+        graph_dir = tmp_path / ".graphify"
+        graph_dir.mkdir()
+        (graph_dir / "graph.json").write_text("{}", encoding="utf-8")
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            raise FileNotFoundError()
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.recall("campagne SEO")
+        assert "introuvable dans le PATH" in result

@@ -55,3 +55,35 @@ class VaultMemory:
             return f"vault_memory: erreur graphify - {result.stderr.strip()[:300]}"
 
         return None
+
+    def recall(self, query: str) -> str:
+        query = query.strip()
+        if not query:
+            return "vault_memory: requete vide."
+
+        graph_path = self.vault_path / ".graphify" / "graph.json"
+        if not graph_path.exists():
+            return (
+                f"vault_memory: graphe absent, lance 'graphify {self.vault_path}' "
+                "pour l'indexer."
+            )
+
+        try:
+            result = subprocess.run(
+                ["graphify", "query", query, "--graph", str(graph_path)],
+                capture_output=True,
+                text=True,
+                timeout=GRAPHIFY_TIMEOUT_SECONDS,
+            )
+        except FileNotFoundError:
+            return "vault_memory: graphify introuvable dans le PATH."
+        except subprocess.TimeoutExpired:
+            return "vault_memory: graphify a depasse le delai (30s)."
+
+        if result.returncode != 0:
+            return f"vault_memory: erreur graphify - {result.stderr.strip()[:300]}"
+
+        output = result.stdout.strip()
+        if len(output) > RECALL_MAX_CHARS:
+            output = output[:RECALL_MAX_CHARS] + " [tronque]"
+        return output or "vault_memory: aucun resultat."
