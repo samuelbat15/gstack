@@ -634,6 +634,10 @@ class Jarvis:
                 self.speaker.say(self.run_agentic(goal))
             return True
 
+        if command.startswith("graphity "):
+            self.speaker.say(self.run_graphity_command(cleaned_text.split(" ", 1)[1].strip()))
+            return True
+
         if command.startswith("cherche "):
             query = cleaned_text.split(" ", 1)[1].strip()
             if query:
@@ -720,6 +724,52 @@ class Jarvis:
         if answer:
             return answer
         return "Je n'ai pas reussi a conclure. Voici les observations:\n" + observation_block
+
+    def run_graphity_command(self, sub_command: str) -> str:
+        normalized = normalize(sub_command)
+
+        if normalized == "revisions":
+            revisions = self.graphity.list_revisions()
+            lines = [f"{r['number']}. {r['label']} ({r['agent_kind']})" for r in revisions]
+            return "\n".join(lines) if lines else "Aucune revision."
+
+        if normalized == "traffic":
+            return self.graphity.describe_traffic()
+
+        if normalized == "latest":
+            self.graphity.set_always_latest()
+            return "Traffic route vers la derniere revision."
+
+        if normalized.startswith("split "):
+            targets_text = sub_command.split(" ", 1)[1].strip()
+            try:
+                targets = self.parse_split_targets(targets_text)
+                self.graphity.set_manual_split(targets)
+            except GraphityStateError as exc:
+                return f"graphity split: {exc}"
+            return f"Split applique: {targets_text}"
+
+        if normalized.startswith("memo "):
+            query = sub_command.split(" ", 1)[1].strip()
+            if not query:
+                return "graphity memo: requete manquante."
+            return self.graphity.memory.recall(query)
+
+        return "Sous-commande graphity inconnue. Essaie: revisions, traffic, split, latest, memo."
+
+    def parse_split_targets(self, text: str) -> dict[str, int]:
+        targets: dict[str, int] = {}
+        for chunk in text.split():
+            if "=" not in chunk:
+                raise GraphityStateError(f"Format invalide: {chunk} (attendu cle=valeur)")
+            key, value = chunk.split("=", 1)
+            key = key.strip()
+            try:
+                percent = int(value.strip())
+            except ValueError:
+                raise GraphityStateError(f"Pourcentage invalide: {value}") from None
+            targets[key] = percent
+        return targets
 
     def build_agent_prompt(self, user_text: str, observations: list[str]) -> str:
         notes = self.memory.recent_notes()
