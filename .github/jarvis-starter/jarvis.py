@@ -817,6 +817,20 @@ class Jarvis:
         ]
         return "\n".join(lines)
 
+    def run_daemon(self) -> None:
+        self.speaker.say("Jarvis demon actif. Verification des rappels toutes les 30s. Ctrl+C pour arreter.")
+        try:
+            while True:
+                now = datetime.now()
+                for reminder in self.reminders.due(now):
+                    self.notifier.notify("Jarvis", reminder["text"])
+                    self.speaker.say(reminder["text"])
+                    self.reminders.mark_fired(reminder["id"])
+                time.sleep(30)
+        except KeyboardInterrupt:
+            print()
+            self.speaker.say("Demon arrete.")
+
     def build_agent_prompt(self, user_text: str, observations: list[str]) -> str:
         notes = self.memory.recent_notes()
         allowed_sites = ", ".join(sorted(self.config.sites.keys())) or "aucun"
@@ -962,6 +976,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--voice", action="store_true", help="Active l'entree/sortie vocale si les dependances existent.")
     parser.add_argument("--text", action="store_true", help="Force le mode texte.")
     parser.add_argument("--config", default="config.json", help="Chemin vers config.json.")
+    parser.add_argument("--daemon", action="store_true", help="Mode fond: verifie les rappels sans session interactive.")
     return parser.parse_args(argv)
 
 
@@ -983,6 +998,11 @@ def main(argv: list[str]) -> int:
 
     voice = bool(args.voice and not args.text)
     app = Jarvis(config=config, voice=voice, data_dir=data_dir, vault_path=vault_path)
+
+    if args.daemon:
+        app.run_daemon()
+        return 0
+
     app.run()
     return 0
 
