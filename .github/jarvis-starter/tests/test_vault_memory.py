@@ -29,6 +29,7 @@ class TestRemember:
             return make_completed_process(returncode=0, stdout="ok")
 
         monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        monkeypatch.setattr("vault_memory._graphify_executable", lambda: "graphify")
         result = memory.remember("il faut relancer la campagne SEO")
 
         assert "enregistree" in result

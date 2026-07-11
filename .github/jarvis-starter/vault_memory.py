@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -8,6 +9,12 @@ DEFAULT_VAULT_PATH = r"C:\Users\aiell\Documents\STARBOXE-Notes"
 GRAPHIFY_TIMEOUT_SECONDS = 30
 RECALL_MAX_CHARS = 4000
 JARVIS_SUBFOLDER = "04_Agents_IA/Jarvis"
+
+
+def _graphify_executable() -> str:
+    # shutil.which resolves PATHEXT (.cmd/.ps1) on Windows, unlike a bare
+    # subprocess.run(["graphify", ...]) which only matches an exact filename.
+    return shutil.which("graphify") or "graphify"
 
 
 class VaultMemory:
@@ -41,7 +48,7 @@ class VaultMemory:
     def _run_graphify(self, args: list[str]) -> str | None:
         try:
             result = subprocess.run(
-                ["graphify", *args],
+                [_graphify_executable(), *args],
                 capture_output=True,
                 text=True,
                 timeout=GRAPHIFY_TIMEOUT_SECONDS,
@@ -70,7 +77,7 @@ class VaultMemory:
 
         try:
             result = subprocess.run(
-                ["graphify", "query", query, "--graph", str(graph_path)],
+                [_graphify_executable(), "query", query, "--graph", str(graph_path)],
                 capture_output=True,
                 text=True,
                 timeout=GRAPHIFY_TIMEOUT_SECONDS,
