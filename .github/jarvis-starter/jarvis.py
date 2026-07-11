@@ -657,6 +657,7 @@ class Jarvis:
             return LOCAL_ONLY_MESSAGE
 
         observations: list[str] = []
+        seen_calls: set[str] = set()
         for _ in range(3):
             prompt = self.build_agent_prompt(user_text, observations)
             raw_answer = self.ai.ask(prompt, instructions=AGENTIC_SYSTEM_INSTRUCTIONS)
@@ -678,6 +679,15 @@ class Jarvis:
                 args = call.get("args", {})
                 if not isinstance(args, dict):
                     args = {}
+
+                signature = f"{tool_name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+                if signature in seen_calls:
+                    observations.append(
+                        f"{tool_name}: deja execute avec ces arguments, resultat inchange. "
+                        "N'appelle pas le meme outil avec les memes arguments deux fois."
+                    )
+                    continue
+                seen_calls.add(signature)
                 observations.append(self.execute_agent_tool(tool_name, args))
 
             if final:

@@ -43,11 +43,15 @@
       "Bash(cp \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\reel3_routine_20min.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\" && cp \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\reel4_angle_unique.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\")",
       "Bash(cp \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\reel5_abonnes_ecoutent_pas.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\" && cp \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\reel6_bilan_30jours.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\")",
       "Bash(cp \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\reel_broll_coaching.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\" && echo \"OK\")",
-      "Bash(xcopy /Y \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\*.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\" 2>&1)"
+      "Bash(xcopy /Y \"C:\\\\Users\\\\aiell\\\\Documents\\\\Reels\\\\*.mp4\" \"C:\\\\Users\\\\aiell\\\\Desktop\\\\\" 2>&1)",
+      "Bash(rm \"c:/Users/aiell/Projects/gstack/.github/.claude/arbitrage-bot\")",
+      "Bash(cat .gitignore)",
+      "Bash(grep -o '^[A-Z_]*=' .env)"
     ],
     "additionalDirectories": [
       "C:\\Users\\aiell\\.continue",
-      "C:\\Users\\aiell\\Projects\\deer-flow"
+      "C:\\Users\\aiell\\Projects\\deer-flow",
+      "c:\\Users\\aiell\\Projects\\gstack\\.github\\.claude"
     ]
   }
 }
