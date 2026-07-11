@@ -131,6 +131,47 @@ Modifie `config.json`.
 Ne mets jamais de commandes destructrices dans cette liste. Un vrai Jarvis doit
 avoir moins de pouvoirs par defaut, puis gagner des permissions une par une.
 
+## Memoire long terme (vault Obsidian)
+
+Jarvis peut memoriser des faits durables directement dans ton vault
+Obsidian et les rappeler via le vrai graphe de connaissances `graphify`
+(pas un index maison).
+
+1. Installe `graphify` si necessaire (`npm install -g graphify`).
+2. Dans `.env`, configure `JARVIS_VAULT_PATH` si ton vault n'est pas
+   `C:\Users\aiell\Documents\STARBOXE-Notes` (valeur par defaut).
+3. Utilise:
+
+```text
+graphity memo campagne SEO
+agent souviens-toi que je dois relancer la campagne SEO en aout
+```
+
+Les notes de Jarvis s'ecrivent dans `<vault>/04_Agents_IA/Jarvis/` et
+declenchent une reconstruction du graphe (`graphify update`) a chaque
+ecriture.
+
+## Revisions Jarvis (A/B)
+
+Chaque demande agentic est routee entre deux personas : `v1-fast-local`
+(reponses courtes, outils seulement si utiles) et `v2-graph-memory`
+(privilegie la memoire du vault). Par defaut, toujours la derniere
+revision creee.
+
+```text
+graphity revisions
+graphity traffic
+graphity split 1=50 2=50
+graphity latest
+```
+
+## Lancer les tests
+
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
 ## Architecture reelle
 
 Pour aller jusqu'a une solution de production:
