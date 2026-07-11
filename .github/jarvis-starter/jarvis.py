@@ -834,6 +834,18 @@ Observations deja recues:
                 return "launch_app: cible manquante."
             return "launch_app: " + self.open_allowed_target(target)
 
+        if tool_name == "graphity_recall":
+            query = as_text(args.get("query"))
+            if not query:
+                return "graphity_recall: requete manquante."
+            return "graphity_recall: " + self.graphity.memory.recall(query)
+
+        if tool_name == "graphity_remember":
+            text = as_text(args.get("text"))
+            if not text:
+                return "graphity_remember: texte manquant."
+            return "graphity_remember: " + self.graphity.memory.remember(text)
+
         return f"{tool_name}: outil non autorise."
 
     def status(self) -> str:
