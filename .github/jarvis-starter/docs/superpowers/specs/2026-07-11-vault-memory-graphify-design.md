@@ -144,7 +144,7 @@ hors de `04_Agents_IA/Jarvis/`.
 - `execute_agent_tool` : nouvelles branches `graphity_recall` ->
   `self.graphity.memory.recall(args["query"])` et `graphity_remember` ->
   `self.graphity.memory.remember(args["text"])`.
-- `.env.template` : ajoute `JARVIS_VAULT_PATH=` (commentaire : chemin du
+- `env.template` : ajoute `JARVIS_VAULT_PATH=` (commentaire : chemin du
   vault Obsidian, vide = valeur par defaut codee en dur).
 
 ## Flux de données

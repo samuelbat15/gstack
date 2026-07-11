@@ -33,7 +33,7 @@ directes `graphity *` ainsi que les outils agentic `graphity_recall`/
   planification, absent des deux specs).
 - Modify: `jarvis-starter/jarvis.py` — instancie `GraphityRuntime`, route
   `run_agentic`, cable `handle()` et `execute_agent_tool()`.
-- Modify: `jarvis-starter/.env.template` — ajoute `JARVIS_VAULT_PATH`.
+- Modify: `jarvis-starter/env.template` — ajoute `JARVIS_VAULT_PATH`.
 - Modify: `jarvis-starter/README.md` — documente la memoire vault et les
   revisions.
 - Create: `jarvis-starter/requirements-dev.txt` — `pytest>=8.0`.
@@ -870,7 +870,7 @@ git commit -m "fix: update graphity_cli.py for the VaultMemory-backed GraphityRu
 
 **Files:**
 - Modify: `jarvis-starter/jarvis.py:96-130` (Config/Jarvis init), `:734-751` (`main`)
-- Modify: `jarvis-starter/.env.template`
+- Modify: `jarvis-starter/env.template`
 
 - [ ] **Step 1: Importer `DEFAULT_VAULT_PATH`**
 
@@ -968,7 +968,7 @@ def main(argv: list[str]) -> int:
 
 - [ ] **Step 4: Ajouter la variable au template d'environnement**
 
-Ajouter à la fin de `jarvis-starter/.env.template` :
+Ajouter à la fin de `jarvis-starter/env.template` :
 
 ```env
 
@@ -992,7 +992,7 @@ erreur même si le vault par défaut existe mais n'est pas encore indexé).
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add jarvis-starter/jarvis.py jarvis-starter/.env.template
+git add jarvis-starter/jarvis.py jarvis-starter/env.template
 git commit -m "feat: instantiate GraphityRuntime with the configured vault path"
 ```
 
