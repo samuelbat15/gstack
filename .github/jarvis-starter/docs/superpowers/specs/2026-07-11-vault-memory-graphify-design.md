@@ -196,6 +196,23 @@ Utilisateur: "graphity memo campagne SEO"
 - Reprend `requirements-dev.txt` (`pytest>=8.0`) de la spec precedente,
   pas de nouvelle dependance.
 
+## Correction post-implementation (verification Task 11)
+
+La verification end-to-end contre le vrai vault (642 fichiers) a invalide
+l'hypothese "rebuild incremental donc rapide" de la section Objectifs :
+`graphify update` a pris plus de 7 minutes sans terminer, et
+`subprocess.run(timeout=...)` ne tue pas le `node.exe` lance par le
+wrapper `.cmd` sur Windows — le processus reste orphelin indefiniment
+meme apres l'expiration du timeout Python.
+
+Correction adoptee : `VaultMemory.remember()` ecrit la note puis lance
+`graphify update` via `subprocess.Popen` en processus detache
+(`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP` sur Windows), sans jamais
+attendre ni lire sa sortie. Le rebuild reste automatique a chaque note
+(comme decide au brainstorming), mais devient non-bloquant au lieu de
+synchrone. `recall()` n'est pas affectee (reste synchrone avec timeout de
+30s, ce qui est correct puisque `graphify query` est rapide en pratique).
+
 ## Hors scope / suite possible
 
 - Nettoyage/relecture du GRAPH_REPORT.md perime (>1 mois) — hors scope,

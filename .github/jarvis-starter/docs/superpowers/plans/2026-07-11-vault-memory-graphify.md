@@ -1407,3 +1407,15 @@ git status --short
 Si des fichiers non commit apparaissent (ajustements pendant la
 verification), les committer un par un avec un message decrivant
 precisement la correction.
+
+**Ajustement reel effectue a cette etape :** le test contre le vrai vault
+(642 fichiers) a revele que l'hypothese "rebuild incremental donc rapide"
+etait fausse — `graphify update` a pris plus de 7 minutes sans terminer,
+et le timeout de `subprocess.run` ne tue pas le `node.exe` lance par le
+wrapper `.cmd` sur Windows (processus orphelin, 2,6 Go de RAM, tue
+manuellement). Correction : `VaultMemory.remember()` lance desormais le
+rebuild via `subprocess.Popen` detache (fire-and-forget) au lieu
+d'attendre `subprocess.run`. Voir le commit
+"fix: launch graphify update as a detached background process instead of
+blocking" et la section "Correction post-implementation" de la spec
+associee pour le detail.
