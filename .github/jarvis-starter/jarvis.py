@@ -658,44 +658,52 @@ class Jarvis:
         if not self.ai.enabled:
             return LOCAL_ONLY_MESSAGE
 
-        observations: list[str] = []
-        seen_calls: set[str] = set()
-        for _ in range(6):
-            prompt = self.build_agent_prompt(user_text, observations)
-            raw_answer = self.ai.ask(prompt, instructions=AGENTIC_SYSTEM_INSTRUCTIONS)
-            payload = extract_json_object(raw_answer)
-            if payload is None:
-                return raw_answer
+        def executor(revision: dict[str, Any], graph_context: str) -> str:
+            instructions = f"{revision['instructions']}\n\n{AGENTIC_SYSTEM_INSTRUCTIONS}"
+            observations: list[str] = []
+            seen_calls: set[str] = set()
+            if graph_context and "vault_memory:" not in graph_context:
+                observations.append(f"Contexte du vault (memoire long terme):\n{graph_context}")
 
-            tool_calls = payload.get("tool_calls", [])
-            final = as_text(payload.get("final"))
+            for _ in range(6):
+                prompt = self.build_agent_prompt(user_text, observations)
+                raw_answer = self.ai.ask(prompt, instructions=instructions)
+                payload = extract_json_object(raw_answer)
+                if payload is None:
+                    return raw_answer
 
-            if not isinstance(tool_calls, list) or not tool_calls:
-                return final or "Termine."
+                tool_calls = payload.get("tool_calls", [])
+                final = as_text(payload.get("final"))
 
-            for call in tool_calls[:5]:
-                if not isinstance(call, dict):
-                    observations.append("Appel outil ignore: format invalide.")
-                    continue
-                tool_name = as_text(call.get("tool"))
-                args = call.get("args", {})
-                if not isinstance(args, dict):
-                    args = {}
+                if not isinstance(tool_calls, list) or not tool_calls:
+                    return final or "Termine."
 
-                signature = f"{tool_name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
-                if signature in seen_calls:
-                    observations.append(
-                        f"{tool_name}: deja execute avec ces arguments, resultat inchange. "
-                        "N'appelle pas le meme outil avec les memes arguments deux fois."
-                    )
-                    continue
-                seen_calls.add(signature)
-                observations.append(self.execute_agent_tool(tool_name, args))
+                for call in tool_calls[:5]:
+                    if not isinstance(call, dict):
+                        observations.append("Appel outil ignore: format invalide.")
+                        continue
+                    tool_name = as_text(call.get("tool"))
+                    args = call.get("args", {})
+                    if not isinstance(args, dict):
+                        args = {}
 
-            if final:
-                observations.append(f"Message provisoire du planificateur: {final}")
+                    signature = f"{tool_name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+                    if signature in seen_calls:
+                        observations.append(
+                            f"{tool_name}: deja execute avec ces arguments, resultat inchange. "
+                            "N'appelle pas le meme outil avec les memes arguments deux fois."
+                        )
+                        continue
+                    seen_calls.add(signature)
+                    observations.append(self.execute_agent_tool(tool_name, args))
 
-        return self.force_final_synthesis(user_text, observations)
+                if final:
+                    observations.append(f"Message provisoire du planificateur: {final}")
+
+            return self.force_final_synthesis(user_text, observations)
+
+        result = self.graphity.invoke(user_text, executor)
+        return result.response
 
     def force_final_synthesis(self, user_text: str, observations: list[str]) -> str:
         observation_block = "\n".join(observations) if observations else "Aucune observation."

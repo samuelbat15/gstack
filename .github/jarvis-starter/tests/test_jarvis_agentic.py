@@ -21,7 +21,7 @@ class ScriptedAI:
 
 def make_jarvis(tmp_path) -> Jarvis:
     config = Config(assistant_name="Jarvis", confirm_actions=False, sites={}, apps={})
-    return Jarvis(config=config, voice=False, data_dir=tmp_path)
+    return Jarvis(config=config, voice=False, data_dir=tmp_path, vault_path=tmp_path / "vault")
 
 
 def agent_turn(tool_calls, final=""):
