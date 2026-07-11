@@ -12,10 +12,13 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from graphity_runtime import GraphityRuntime, GraphityStateError
+from notifications import Notifier
+from reminders import ReminderStore, parse_reminder_time, split_reminder_command
 from vault_memory import DEFAULT_VAULT_PATH
 
 
@@ -51,6 +54,7 @@ Outils autorises:
 - launch_app {"target": "nom autorise dans config.json"}
 - graphity_recall {"query": "question ou sujet"}
 - graphity_remember {"text": "fait durable a memoriser"}
+- create_reminder {"when": "dans 20 minutes | a 15h00", "text": "texte du rappel"}
 
 Regles:
 - N'invente jamais le resultat d'un outil.
@@ -73,6 +77,8 @@ Commandes locales:
 - note <texte a memoriser>
 - mes notes
 - agent <objectif agentic>
+- rappelle-moi <dans N minutes|a HH:MM> de <texte>
+- mes rappels
 - graphity revisions
 - graphity traffic
 - graphity split 1=50 2=50
@@ -162,8 +168,13 @@ def looks_like_local_command(text: str) -> bool:
         "mes notes",
         "liste notes",
         "notes",
+        "mes rappels",
+        "liste rappels",
+        "rappels",
     }
-    return command in exact_commands or command.startswith(("note ", "cherche ", "ouvre ", "lance ", "graphity "))
+    return command in exact_commands or command.startswith(
+        ("note ", "cherche ", "ouvre ", "lance ", "graphity ", "rappelle-moi ")
+    )
 
 
 def extract_response_text(payload: dict[str, Any]) -> str:
@@ -552,6 +563,8 @@ class Jarvis:
         self.memory = Memory(data_dir)
         self.ai = build_ai_client()
         self.graphity = GraphityRuntime(data_dir / "graphity", vault_path)
+        self.reminders = ReminderStore(data_dir)
+        self.notifier = Notifier()
         self.pending_command: str | None = None
 
     def confirm(self, action: str) -> bool:
@@ -636,6 +649,15 @@ class Jarvis:
 
         if command.startswith("graphity "):
             self.speaker.say(self.run_graphity_command(cleaned_text.split(" ", 1)[1].strip()))
+            return True
+
+        if command.startswith("rappelle-moi "):
+            remainder = cleaned_text.split(" ", 1)[1].strip()
+            self.speaker.say(self.create_reminder_from_text(remainder))
+            return True
+
+        if command in {"mes rappels", "liste rappels", "rappels"}:
+            self.speaker.say(self.describe_pending_reminders())
             return True
 
         if command.startswith("cherche "):
@@ -771,6 +793,30 @@ class Jarvis:
             targets[key] = percent
         return targets
 
+    def create_reminder_from_text(self, remainder: str) -> str:
+        split = split_reminder_command(remainder)
+        if split is None:
+            return (
+                "Format non reconnu. Essaie: rappelle-moi dans 20 minutes de <texte> "
+                "ou rappelle-moi a 15h00 de <texte>."
+            )
+        when_text, text = split
+        trigger_at = parse_reminder_time(when_text, datetime.now())
+        if trigger_at is None:
+            return f"Heure non reconnue: '{when_text}'. Essaie 'dans 20 minutes' ou 'a 15h00'."
+        self.reminders.add(text, trigger_at)
+        return f"Rappel programme pour {trigger_at.strftime('%H:%M')} : {text}"
+
+    def describe_pending_reminders(self) -> str:
+        pending = self.reminders.pending()
+        if not pending:
+            return "Aucun rappel en attente."
+        lines = [
+            f"- {datetime.fromisoformat(r['trigger_at']).strftime('%H:%M')} : {r['text']}"
+            for r in pending
+        ]
+        return "\n".join(lines)
+
     def build_agent_prompt(self, user_text: str, observations: list[str]) -> str:
         notes = self.memory.recent_notes()
         allowed_sites = ", ".join(sorted(self.config.sites.keys())) or "aucun"
@@ -845,6 +891,17 @@ Observations deja recues:
             if not text:
                 return "graphity_remember: texte manquant."
             return "graphity_remember: " + self.graphity.memory.remember(text)
+
+        if tool_name == "create_reminder":
+            when_text = as_text(args.get("when"))
+            text = as_text(args.get("text"))
+            if not when_text or not text:
+                return "create_reminder: when/text manquant."
+            trigger_at = parse_reminder_time(when_text, datetime.now())
+            if trigger_at is None:
+                return f"create_reminder: heure non reconnue '{when_text}'."
+            self.reminders.add(text, trigger_at)
+            return f"create_reminder: rappel programme pour {trigger_at.strftime('%H:%M')}."
 
         return f"{tool_name}: outil non autorise."
 
