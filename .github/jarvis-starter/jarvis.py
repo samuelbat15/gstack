@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from graphity_runtime import GraphityRuntime, GraphityStateError
+from vault_memory import DEFAULT_VAULT_PATH
 
 
 SYSTEM_INSTRUCTIONS = """
@@ -544,12 +545,13 @@ class Memory:
 
 
 class Jarvis:
-    def __init__(self, config: Config, voice: bool, data_dir: Path) -> None:
+    def __init__(self, config: Config, voice: bool, data_dir: Path, vault_path: Path) -> None:
         self.config = config
         self.listener = Listener(voice=voice)
         self.speaker = Speaker(enabled=voice, name=config.assistant_name)
         self.memory = Memory(data_dir)
         self.ai = build_ai_client()
+        self.graphity = GraphityRuntime(data_dir / "graphity", vault_path)
         self.pending_command: str | None = None
 
     def confirm(self, action: str) -> bool:
@@ -850,8 +852,10 @@ def main(argv: list[str]) -> int:
     if not data_dir.is_absolute():
         data_dir = base_dir / data_dir
 
+    vault_path = Path(os.environ.get("JARVIS_VAULT_PATH", "").strip() or DEFAULT_VAULT_PATH)
+
     voice = bool(args.voice and not args.text)
-    app = Jarvis(config=config, voice=voice, data_dir=data_dir)
+    app = Jarvis(config=config, voice=voice, data_dir=data_dir, vault_path=vault_path)
     app.run()
     return 0
 
