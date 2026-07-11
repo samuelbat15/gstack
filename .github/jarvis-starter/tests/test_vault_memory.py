@@ -36,3 +36,34 @@ class TestRemember:
         assert len(notes) == 1
         assert "relancer la campagne SEO" in notes[0].read_text(encoding="utf-8")
         assert calls == [["graphify", "update", str(tmp_path)]]
+
+    def test_graphify_not_found(self, tmp_path, monkeypatch):
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            raise FileNotFoundError()
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.remember("un fait")
+        assert "introuvable dans le PATH" in result
+
+    def test_graphify_timeout(self, tmp_path, monkeypatch):
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd="graphify", timeout=30)
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.remember("un fait")
+        assert "delai" in result
+
+    def test_graphify_nonzero_exit(self, tmp_path, monkeypatch):
+        memory = VaultMemory(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return make_completed_process(returncode=1, stderr="boom")
+
+        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        result = memory.remember("un fait")
+        assert "erreur graphify" in result
+        assert "boom" in result
