@@ -52,17 +52,20 @@ directes `graphity *` ainsi que les outils agentic `graphity_recall`/
 - Create: `jarvis-starter/vault_memory.py`
 - Test: `jarvis-starter/tests/test_vault_memory.py`
 
-- [ ] **Step 1: Créer le fichier de dépendances de dev**
+- [ ] **Step 1: Vérifier/créer le fichier de dépendances de dev**
 
-`jarvis-starter/requirements-dev.txt`:
+`jarvis-starter/requirements-dev.txt` (peut déjà exister — une spec
+séparée sur cette branche, `2026-07-11-agentic-loop-robustness-design.md`,
+l'a créé en premier pour ses propres tests ; si le fichier existe déjà
+avec ce contenu exact, ne rien faire) :
 
 ```text
 pytest>=8.0
 ```
 
-- [ ] **Step 2: Créer la config pytest**
+- [ ] **Step 2: Vérifier/créer la config pytest**
 
-`jarvis-starter/pytest.ini`:
+`jarvis-starter/pytest.ini` (même remarque — probablement déjà présent) :
 
 ```ini
 [pytest]
@@ -760,8 +763,10 @@ Run:
 python -m pytest -v
 ```
 
-Expected: 20 passed (11 de `test_vault_memory.py` + 9 de
-`test_graphity_runtime.py`).
+Expected: 26 passed (11 de `test_vault_memory.py` + 9 de
+`test_graphity_runtime.py` + 6 de `test_jarvis_agentic.py`, ce dernier
+cree par la spec separee de robustesse de la boucle agentic, deja presente
+sur cette branche).
 
 - [ ] **Step 6: Commit**
 
@@ -1005,7 +1010,20 @@ git commit -m "feat: instantiate GraphityRuntime with the configured vault path"
 
 - [ ] **Step 1: Réécrire `run_agentic`**
 
-Remplacer la méthode `run_agentic` actuelle :
+**Contexte important :** entre l'écriture initiale de ce plan et son
+exécution, une spec séparée (`2026-07-11-agentic-loop-robustness-design.md`)
+a corrigé un bug réel observé en conditions réelles : la boucle à 3 tours
+sans déduplication faisait boucler le planificateur sur des appels d'outils
+identiques sans jamais conclure. `run_agentic` sur cette branche a donc
+déjà : une limite de **6** tours (pas 3), une déduplication des appels
+d'outils identiques (`seen_calls`), et une méthode séparée
+`force_final_synthesis` appelée en bout de boucle au lieu du dump
+technique brut. Ce Step reprend cette version à jour comme base — ne pas
+réintroduire l'ancienne boucle à 3 tours sans déduplication.
+
+Remplacer la méthode `run_agentic` actuelle (vérifier qu'elle correspond
+bien à la version ci-dessous avant de remplacer — sinon `git diff` d'abord
+pour voir l'état réel du fichier) :
 
 ```python
     def run_agentic(self, user_text: str) -> str:
@@ -1013,7 +1031,8 @@ Remplacer la méthode `run_agentic` actuelle :
             return LOCAL_ONLY_MESSAGE
 
         observations: list[str] = []
-        for _ in range(3):
+        seen_calls: set[str] = set()
+        for _ in range(6):
             prompt = self.build_agent_prompt(user_text, observations)
             raw_answer = self.ai.ask(prompt, instructions=AGENTIC_SYSTEM_INSTRUCTIONS)
             payload = extract_json_object(raw_answer)
@@ -1034,12 +1053,21 @@ Remplacer la méthode `run_agentic` actuelle :
                 args = call.get("args", {})
                 if not isinstance(args, dict):
                     args = {}
+
+                signature = f"{tool_name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+                if signature in seen_calls:
+                    observations.append(
+                        f"{tool_name}: deja execute avec ces arguments, resultat inchange. "
+                        "N'appelle pas le meme outil avec les memes arguments deux fois."
+                    )
+                    continue
+                seen_calls.add(signature)
                 observations.append(self.execute_agent_tool(tool_name, args))
 
             if final:
                 observations.append(f"Message provisoire du planificateur: {final}")
 
-        return "J'ai atteint la limite de boucle agentic. Voici les observations:\n" + "\n".join(observations)
+        return self.force_final_synthesis(user_text, observations)
 ```
 
 par :
@@ -1052,10 +1080,11 @@ par :
         def executor(revision: dict[str, Any], graph_context: str) -> str:
             instructions = f"{revision['instructions']}\n\n{AGENTIC_SYSTEM_INSTRUCTIONS}"
             observations: list[str] = []
+            seen_calls: set[str] = set()
             if graph_context and "vault_memory:" not in graph_context:
                 observations.append(f"Contexte du vault (memoire long terme):\n{graph_context}")
 
-            for _ in range(3):
+            for _ in range(6):
                 prompt = self.build_agent_prompt(user_text, observations)
                 raw_answer = self.ai.ask(prompt, instructions=instructions)
                 payload = extract_json_object(raw_answer)
@@ -1076,16 +1105,29 @@ par :
                     args = call.get("args", {})
                     if not isinstance(args, dict):
                         args = {}
+
+                    signature = f"{tool_name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+                    if signature in seen_calls:
+                        observations.append(
+                            f"{tool_name}: deja execute avec ces arguments, resultat inchange. "
+                            "N'appelle pas le meme outil avec les memes arguments deux fois."
+                        )
+                        continue
+                    seen_calls.add(signature)
                     observations.append(self.execute_agent_tool(tool_name, args))
 
                 if final:
                     observations.append(f"Message provisoire du planificateur: {final}")
 
-            return "J'ai atteint la limite de boucle agentic. Voici les observations:\n" + "\n".join(observations)
+            return self.force_final_synthesis(user_text, observations)
 
         result = self.graphity.invoke(user_text, executor)
         return result.response
 ```
+
+Note : `force_final_synthesis` reste une méthode séparée sur `Jarvis`,
+inchangée par ce plan — elle est appelée telle quelle depuis l'intérieur
+de `executor`.
 
 - [ ] **Step 2: Vérifier manuellement (sans clé IA, doit rester inchangé)**
 
@@ -1324,7 +1366,7 @@ Run (depuis `jarvis-starter/`) :
 python -m pytest -v
 ```
 
-Expected: 19 passed, 0 failed.
+Expected: 26 passed, 0 failed.
 
 - [ ] **Step 2: Test manuel bout-en-bout contre le vrai vault**
 
