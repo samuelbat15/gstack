@@ -20,15 +20,15 @@ class TestRemember:
         result = memory.remember("   ")
         assert "texte vide" in result
 
-    def test_success_writes_note_and_rebuilds(self, tmp_path, monkeypatch):
+    def test_success_writes_note_and_launches_background_rebuild(self, tmp_path, monkeypatch):
         memory = VaultMemory(tmp_path)
         calls = []
 
-        def fake_run(args, **kwargs):
+        def fake_popen(args, **kwargs):
             calls.append(args)
-            return make_completed_process(returncode=0, stdout="ok")
+            return None
 
-        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        monkeypatch.setattr("vault_memory.subprocess.Popen", fake_popen)
         monkeypatch.setattr("vault_memory._graphify_executable", lambda: "graphify")
         result = memory.remember("il faut relancer la campagne SEO")
 
@@ -38,36 +38,32 @@ class TestRemember:
         assert "relancer la campagne SEO" in notes[0].read_text(encoding="utf-8")
         assert calls == [["graphify", "update", str(tmp_path)]]
 
-    def test_graphify_not_found(self, tmp_path, monkeypatch):
+    def test_missing_graphify_does_not_block_note(self, tmp_path, monkeypatch):
         memory = VaultMemory(tmp_path)
 
-        def fake_run(args, **kwargs):
+        def fake_popen(args, **kwargs):
             raise FileNotFoundError()
 
-        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
+        monkeypatch.setattr("vault_memory.subprocess.Popen", fake_popen)
         result = memory.remember("un fait")
-        assert "introuvable dans le PATH" in result
 
-    def test_graphify_timeout(self, tmp_path, monkeypatch):
+        assert "enregistree" in result
+        notes = list((tmp_path / "04_Agents_IA" / "Jarvis").glob("*.md"))
+        assert len(notes) == 1
+
+    def test_rebuild_does_not_block_on_slow_graphify(self, tmp_path, monkeypatch):
+        # Le rebuild ne doit jamais attendre le sous-processus (Popen, pas
+        # run) : pas de blocage meme si graphify met plusieurs minutes.
+        import time as time_module
+
         memory = VaultMemory(tmp_path)
+        monkeypatch.setattr("vault_memory.subprocess.Popen", lambda *a, **k: object())
 
-        def fake_run(args, **kwargs):
-            raise subprocess.TimeoutExpired(cmd="graphify", timeout=30)
+        start = time_module.monotonic()
+        memory.remember("un fait rapide")
+        elapsed = time_module.monotonic() - start
 
-        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
-        result = memory.remember("un fait")
-        assert "delai" in result
-
-    def test_graphify_nonzero_exit(self, tmp_path, monkeypatch):
-        memory = VaultMemory(tmp_path)
-
-        def fake_run(args, **kwargs):
-            return make_completed_process(returncode=1, stderr="boom")
-
-        monkeypatch.setattr("vault_memory.subprocess.run", fake_run)
-        result = memory.remember("un fait")
-        assert "erreur graphify" in result
-        assert "boom" in result
+        assert elapsed < 1.0
 
 
 class TestRecall:

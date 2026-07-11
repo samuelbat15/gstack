@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -39,29 +40,30 @@ class VaultMemory:
             encoding="utf-8",
         )
 
-        error = self._run_graphify(["update", str(self.vault_path)])
-        if error is not None:
-            return error
+        self._launch_graphify_update_in_background()
 
         return "vault_memory: note enregistree dans le vault."
 
-    def _run_graphify(self, args: list[str]) -> str | None:
+    def _launch_graphify_update_in_background(self) -> None:
+        # graphify update peut prendre plusieurs minutes sur un gros vault, et
+        # subprocess timeout ne tue pas fiablement le node.exe lance par le
+        # wrapper .cmd sur Windows (le processus reste orphelin). On lance
+        # donc en detache sans jamais attendre ni lire sa sortie.
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+
         try:
-            result = subprocess.run(
-                [_graphify_executable(), *args],
-                capture_output=True,
-                text=True,
-                timeout=GRAPHIFY_TIMEOUT_SECONDS,
+            subprocess.Popen(
+                [_graphify_executable(), "update", str(self.vault_path)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creationflags,
+                start_new_session=(os.name != "nt"),
             )
         except FileNotFoundError:
-            return "vault_memory: graphify introuvable dans le PATH."
-        except subprocess.TimeoutExpired:
-            return "vault_memory: graphify a depasse le delai (30s)."
-
-        if result.returncode != 0:
-            return f"vault_memory: erreur graphify - {result.stderr.strip()[:300]}"
-
-        return None
+            pass
 
     def recall(self, query: str) -> str:
         query = query.strip()
