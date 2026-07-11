@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from graphity_runtime import GraphityRuntime, GraphityStateError
+from vault_memory import DEFAULT_VAULT_PATH
 
 
 def parse_split(values: list[str]) -> dict[str, int]:
@@ -17,12 +18,13 @@ def parse_split(values: list[str]) -> dict[str, int]:
 
 
 def build_runtime(args: argparse.Namespace) -> GraphityRuntime:
-    return GraphityRuntime(Path(args.data_dir))
+    return GraphityRuntime(Path(args.data_dir), Path(args.vault_path))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Graphity local runtime for Jarvis.")
     parser.add_argument("--data-dir", default="./data/graphity", help="Dossier d'etat Graphity.")
+    parser.add_argument("--vault-path", default=DEFAULT_VAULT_PATH, help="Chemin du vault Obsidian.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init", help="Cree les revisions locales par defaut.")
@@ -63,7 +65,7 @@ def main() -> int:
             runtime.set_manual_split(parse_split(args.targets))
             print(runtime.describe_traffic())
         elif args.command == "recall":
-            print(runtime.memory.recent_context(args.query) or "Aucune memoire.")
+            print(runtime.memory.recall(args.query))
     except GraphityStateError as exc:
         print(f"Erreur Graphity: {exc}")
         return 2
