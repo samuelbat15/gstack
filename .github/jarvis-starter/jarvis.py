@@ -331,11 +331,86 @@ class OllamaClient:
         return "J'ai recu une reponse vide d'Ollama."
 
 
-def build_ai_client() -> NoAIClient | OpenAIResponsesClient | OllamaClient:
+class OpenRouterClient:
+    def __init__(self, model: str) -> None:
+        self.api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+        self.model = model
+        self.endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        self.provider_name = "openrouter"
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+    def status(self) -> str:
+        if self.enabled:
+            return f"activee via OpenRouter ({self.model})"
+        return "inactive, OPENROUTER_API_KEY absent"
+
+    def ask(
+        self,
+        user_text: str,
+        memory_context: str = "",
+        instructions: str = SYSTEM_INSTRUCTIONS,
+    ) -> str:
+        if not self.enabled:
+            return (
+                "Je suis en mode local pour l'instant. Ajoute OPENROUTER_API_KEY dans .env "
+                "pour activer les reponses IA completes via OpenRouter. Tape 'aide' pour mes commandes."
+            )
+
+        prompt = user_text
+        if memory_context:
+            prompt = f"Memoire locale recente:\n{memory_context}\n\nDemande:\n{user_text}"
+
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": prompt},
+                ],
+            }
+        ).encode("utf-8")
+
+        request = urllib.request.Request(
+            self.endpoint,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            details = exc.read().decode("utf-8", errors="replace")
+            return f"Erreur API OpenRouter ({exc.code}). Details: {details[:500]}"
+        except urllib.error.URLError as exc:
+            return f"Impossible de joindre l'API OpenRouter: {exc.reason}"
+        except TimeoutError:
+            return "L'appel OpenRouter a expire. Reessaie dans quelques secondes."
+
+        choices = payload.get("choices", [])
+        if choices and isinstance(choices[0], dict):
+            message = choices[0].get("message", {})
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+        return "J'ai recu une reponse vide du modele."
+
+
+def build_ai_client() -> NoAIClient | OpenAIResponsesClient | OllamaClient | OpenRouterClient:
     provider = os.environ.get("JARVIS_PROVIDER", "auto").strip().casefold()
     openai_model = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
     ollama_model = os.environ.get("OLLAMA_MODEL", "").strip()
     ollama_base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+    openrouter_model = (
+        os.environ.get("OPENROUTER_MODEL", "").strip() or "meta-llama/llama-3.3-70b-instruct:free"
+    )
 
     if provider == "none":
         return NoAIClient()
@@ -343,8 +418,12 @@ def build_ai_client() -> NoAIClient | OpenAIResponsesClient | OllamaClient:
         return OpenAIResponsesClient(openai_model)
     if provider == "ollama":
         return OllamaClient(ollama_model, ollama_base_url)
+    if provider == "openrouter":
+        return OpenRouterClient(openrouter_model)
     if os.environ.get("OPENAI_API_KEY", "").strip():
         return OpenAIResponsesClient(openai_model)
+    if os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return OpenRouterClient(openrouter_model)
     if ollama_model:
         return OllamaClient(ollama_model, ollama_base_url)
     return NoAIClient()
