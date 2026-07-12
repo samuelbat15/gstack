@@ -172,6 +172,32 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
+## Proactivite : rappels programmes
+
+Jarvis peut te rappeler quelque chose plus tard, meme si tu n'as pas de
+terminal ouvert.
+
+```text
+rappelle-moi dans 20 minutes de appeler Sam
+rappelle-moi a 18h30 de partir chercher les enfants
+mes rappels
+```
+
+Pour que les rappels se declenchent sans session ouverte, lance le mode
+daemon dans un terminal separe (le laisser tourner en fond) :
+
+```powershell
+python jarvis.py --daemon
+```
+
+Optionnel : notification Windows native via `pip install windows-toasts`
+(sinon Jarvis affiche/dit le rappel sans toast).
+
+Pour demarrer automatiquement au boot Windows : cree un raccourci vers
+`python jarvis.py --daemon` dans le dossier Demarrage (`shell:startup`
+dans l'Explorateur), ou une tache planifiee declenchee a l'ouverture de
+session. Non automatise par ce starter.
+
 ## Architecture reelle
 
 Pour aller jusqu'a une solution de production:
