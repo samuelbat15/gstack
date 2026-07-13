@@ -993,6 +993,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--text", action="store_true", help="Force le mode texte.")
     parser.add_argument("--config", default="config.json", help="Chemin vers config.json.")
     parser.add_argument("--daemon", action="store_true", help="Mode fond: verifie les rappels sans session interactive.")
+    parser.add_argument("--gui", action="store_true", help="Lance la fenetre graphique au lieu du mode texte.")
     return parser.parse_args(argv)
 
 
@@ -1013,6 +1014,24 @@ def main(argv: list[str]) -> int:
     vault_path = Path(os.environ.get("JARVIS_VAULT_PATH", "").strip() or DEFAULT_VAULT_PATH)
 
     voice = bool(args.voice and not args.text)
+
+    if args.gui:
+        import queue as queue_module
+
+        from gui import JarvisGUI, deny_in_gui
+
+        response_queue: "queue_module.Queue[str]" = queue_module.Queue()
+        app = Jarvis(
+            config=config,
+            voice=False,
+            data_dir=data_dir,
+            vault_path=vault_path,
+            output_sink=response_queue.put,
+            confirm_fn=deny_in_gui,
+        )
+        JarvisGUI(app, response_queue).run()
+        return 0
+
     app = Jarvis(config=config, voice=voice, data_dir=data_dir, vault_path=vault_path)
 
     if args.daemon:
