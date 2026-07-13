@@ -14,7 +14,7 @@ import webbrowser
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from graphity_runtime import GraphityRuntime, GraphityStateError
 from notifications import Notifier
@@ -475,8 +475,9 @@ def as_text(value: Any) -> str:
 
 
 class Speaker:
-    def __init__(self, enabled: bool, name: str) -> None:
+    def __init__(self, enabled: bool, name: str, sink: Callable[[str], None] | None = None) -> None:
         self.name = name
+        self.sink = sink
         self.engine = None
         if enabled:
             try:
@@ -487,7 +488,10 @@ class Speaker:
                 self.engine = None
 
     def say(self, text: str) -> None:
-        print(f"{self.name}: {text}")
+        if self.sink is not None:
+            self.sink(text)
+        else:
+            print(f"{self.name}: {text}")
         if self.engine is None:
             return
 
@@ -556,20 +560,32 @@ class Memory:
 
 
 class Jarvis:
-    def __init__(self, config: Config, voice: bool, data_dir: Path, vault_path: Path) -> None:
+    def __init__(
+        self,
+        config: Config,
+        voice: bool,
+        data_dir: Path,
+        vault_path: Path,
+        output_sink: Callable[[str], None] | None = None,
+        confirm_fn: Callable[[str], bool] | None = None,
+    ) -> None:
         self.config = config
         self.listener = Listener(voice=voice)
-        self.speaker = Speaker(enabled=voice, name=config.assistant_name)
+        self.speaker = Speaker(enabled=voice, name=config.assistant_name, sink=output_sink)
         self.memory = Memory(data_dir)
         self.ai = build_ai_client()
         self.graphity = GraphityRuntime(data_dir / "graphity", vault_path)
         self.reminders = ReminderStore(data_dir)
         self.notifier = Notifier()
+        self.confirm_fn = confirm_fn
         self.pending_command: str | None = None
 
     def confirm(self, action: str) -> bool:
         if not self.config.confirm_actions:
             return True
+
+        if self.confirm_fn is not None:
+            return self.confirm_fn(action)
 
         answer_text = clean_user_text(input(f"Confirmer: {action} ? [o/N] "))
         answer = normalize(answer_text)
