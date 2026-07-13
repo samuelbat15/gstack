@@ -98,6 +98,21 @@ avec `OPENAI_MODEL`.
 `JARVIS_PROVIDER=auto` choisit OpenAI si une cle est presente, sinon Ollama si
 `OLLAMA_MODEL` est configure, sinon le mode local basique.
 
+## Interface graphique
+
+L'icône du bureau lance désormais une vraie fenêtre (Tkinter, aucune
+installation supplémentaire) au lieu du terminal.
+
+```powershell
+python jarvis.py --gui
+```
+
+Le mode texte (`--text`) reste disponible en ligne de commande pour du
+débogage. Les commandes `ouvre <site>`/`lance <app>` ne sont pas encore
+supportées en mode graphique (elles déclinent automatiquement) — utilise
+`--text` pour ces actions en attendant une v2 avec de vraies boîtes de
+dialogue de confirmation.
+
 ## Activer la voix
 
 Le mode voix est optionnel parce que les micros et pilotes Windows varient selon
