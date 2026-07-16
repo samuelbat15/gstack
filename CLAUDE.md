@@ -310,6 +310,36 @@ always BLOCKs (deterministic).
 - Per-device salt: `~/.gstack/security/device-salt` (0600)
 - Session state: `~/.gstack/security/session-state.json` (cross-process, atomic)
 
+## Serena (code search/editing)
+
+Serena is an MCP server for LSP-based symbol search and editing (find/rename
+declarations, jump to references, insert or replace a symbol's body) — reach for
+it when a change needs to reason about symbol boundaries or cross-file references
+(rename across files, find all callers of X) rather than a single-file text edit,
+where Grep/Read/Edit are still faster.
+
+Three Serena connections can be present in this environment. Only one is scoped
+to this repo:
+
+- `serena-gstack` — pinned to gstack. Use this one for anything in this repo.
+- `serena` — pinned to a different project (mma-analyzer). Not for gstack work.
+- `plugin:serena:serena` — the generic, unpinned plugin instance. If both it and
+  `serena-gstack` are connected, prefer `serena-gstack`.
+
+Before running Serena's symbol tools (`find_symbol`, `rename_symbol`,
+`insert_after_symbol`, `replace_symbol_body`, `find_referencing_symbols`, etc.),
+confirm the session has loaded Serena's manual — call `initial_instructions` if
+it hasn't run yet this session. The order that matters:
+
+1. `initial_instructions` — loads the manual, once per session.
+2. `activate_project` (or `onboarding` on a first run against this repo) — only
+   if Serena reports the project isn't activated yet.
+3. The symbol tools above.
+
+Read-only lookups (`find_file`, `get_symbols_overview`, `list_dir`) don't need
+this sequence. If Serena is unavailable or misbehaves, fall back to Grep/Read/Edit
+— it's an accelerator for symbol-aware work, not a hard dependency.
+
 ## Dev symlink awareness
 
 When developing gstack, `.claude/skills/gstack` may be a symlink back to this
