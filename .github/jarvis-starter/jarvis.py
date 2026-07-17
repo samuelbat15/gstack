@@ -986,6 +986,24 @@ Observations deja recues:
 
         subprocess.Popen([command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    def write_file(self, path: str, content: str) -> str:
+        if not self.confirm(f"ecrire le fichier {path}"):
+            self.speaker.say("Annule.")
+            return "annule par l'utilisateur."
+
+        try:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            message = f"erreur - {exc}"
+            self.speaker.say(f"Erreur: {message}")
+            return message
+
+        size = len(content.encode("utf-8"))
+        self.speaker.say(f"Fichier {path} ecrit.")
+        return f"fichier ecrit : {path} ({size} octets)."
+
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Jarvis starter local.")
