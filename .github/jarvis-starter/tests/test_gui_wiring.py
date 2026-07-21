@@ -24,6 +24,47 @@ class TestSpeakerSink:
         assert "bonjour" in captured.out
 
 
+class TestSpeakerElevenLabs:
+    def test_say_uses_elevenlabs_when_configured(self, monkeypatch):
+        monkeypatch.setenv("ELEVENLABS_API_KEY", "key123")
+        monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice123")
+        calls = []
+        monkeypatch.setattr(
+            "jarvis.tts.speak",
+            lambda text, api_key, voice_id, model_id: calls.append((text, api_key, voice_id, model_id)) or True,
+        )
+        speaker = Speaker(enabled=True, name="Jarvis")
+        speaker.say("bonjour")
+        assert calls == [("bonjour", "key123", "voice123", speaker.elevenlabs_model)]
+
+    def test_falls_back_to_engine_when_elevenlabs_fails(self, monkeypatch):
+        monkeypatch.setenv("ELEVENLABS_API_KEY", "key123")
+        monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice123")
+        monkeypatch.setattr("jarvis.tts.speak", lambda *a, **k: False)
+        engine_calls = []
+
+        class FakeEngine:
+            def say(self, text):
+                engine_calls.append(text)
+
+            def runAndWait(self):
+                pass
+
+        speaker = Speaker(enabled=True, name="Jarvis")
+        speaker.engine = FakeEngine()
+        speaker.say("bonjour")
+        assert engine_calls == ["bonjour"]
+
+    def test_no_elevenlabs_env_never_calls_tts_speak(self, monkeypatch):
+        monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+        monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+        called = []
+        monkeypatch.setattr("jarvis.tts.speak", lambda *a, **k: called.append(1) or True)
+        speaker = Speaker(enabled=True, name="Jarvis")
+        speaker.say("bonjour")
+        assert called == []
+
+
 class TestJarvisOutputSink:
     def test_output_sink_is_wired_to_speaker(self, tmp_path):
         received = []

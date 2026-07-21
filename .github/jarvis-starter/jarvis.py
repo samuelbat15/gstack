@@ -6,6 +6,7 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -16,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+import tts
 from graphity_runtime import GraphityRuntime, GraphityStateError
 from notifications import Notifier
 from reminders import ReminderStore, parse_reminder_time, split_reminder_command
@@ -55,6 +57,8 @@ Outils autorises:
 - graphity_recall {"query": "question ou sujet"}
 - graphity_remember {"text": "fait durable a memoriser"}
 - create_reminder {"when": "dans 20 minutes | a 15h00", "text": "texte du rappel"}
+- look_around {"question": "ce que tu veux savoir de la scene (optionnel)"}
+- check_gmail {"query": "requete de recherche Gmail (optionnel, vide = mails recents)"}
 
 Regles:
 - N'invente jamais le resultat d'un outil.
@@ -84,6 +88,15 @@ Commandes locales:
 - graphity split 1=50 2=50
 - graphity latest
 - graphity memo <recherche>
+- regarde <question optionnelle>
+- buffer video demarre / buffer video arrete
+- buffer audio demarre / buffer audio arrete
+- buffer demarre / buffer arrete (les deux en parallele)
+- buffer statut
+- observe video / observe audio / observe (analyse periodique du buffer)
+- arrete observation
+- mail / mes mails (emails recents)
+- mail cherche <requete Gmail>
 
 Exemples:
 - ouvre youtube
@@ -91,6 +104,8 @@ Exemples:
 - note appeler Sam demain matin
 - agent note que je dois appeler Sam puis donne moi l'heure
 - graphity split 1=50 2=50
+- regarde qu'est-ce qu'il y a sur mon bureau
+- buffer demarre
 """.strip()
 
 
@@ -171,9 +186,23 @@ def looks_like_local_command(text: str) -> bool:
         "mes rappels",
         "liste rappels",
         "rappels",
+        "regarde",
+        "buffer video demarre",
+        "buffer video arrete",
+        "buffer audio demarre",
+        "buffer audio arrete",
+        "buffer demarre",
+        "buffer arrete",
+        "buffer statut",
+        "observe video",
+        "observe audio",
+        "observe",
+        "arrete observation",
+        "mail",
+        "mes mails",
     }
     return command in exact_commands or command.startswith(
-        ("note ", "cherche ", "ouvre ", "lance ", "graphity ", "rappelle-moi ")
+        ("note ", "cherche ", "ouvre ", "lance ", "graphity ", "rappelle-moi ", "regarde ", "mail cherche ")
     )
 
 
@@ -479,7 +508,13 @@ class Speaker:
         self.name = name
         self.sink = sink
         self.engine = None
+        self.elevenlabs_api_key = ""
+        self.elevenlabs_voice_id = ""
+        self.elevenlabs_model = tts.DEFAULT_MODEL
         if enabled:
+            self.elevenlabs_api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+            self.elevenlabs_voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "").strip()
+            self.elevenlabs_model = os.environ.get("ELEVENLABS_MODEL", "").strip() or tts.DEFAULT_MODEL
             try:
                 import pyttsx3  # type: ignore
 
@@ -492,6 +527,11 @@ class Speaker:
             self.sink(text)
         else:
             print(f"{self.name}: {text}")
+
+        if self.elevenlabs_api_key and self.elevenlabs_voice_id:
+            if tts.speak(text, self.elevenlabs_api_key, self.elevenlabs_voice_id, self.elevenlabs_model):
+                return
+
         if self.engine is None:
             return
 
@@ -521,8 +561,6 @@ class Listener:
         if not self.voice:
             return input("Vous: ").strip()
 
-        import speech_recognition as sr  # type: ignore
-
         assert self.recognizer is not None
         assert self.microphone is not None
 
@@ -531,12 +569,9 @@ class Listener:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
             audio = self.recognizer.listen(source, timeout=8, phrase_time_limit=12)
 
-        try:
-            return self.recognizer.recognize_google(audio, language="fr-FR").strip()
-        except sr.UnknownValueError:
-            return ""
-        except sr.RequestError as exc:
-            return f"erreur reconnaissance vocale: {exc}"
+        import voice
+
+        return voice.transcribe(audio.get_wav_data()).strip()
 
 
 class Memory:
@@ -559,6 +594,52 @@ class Memory:
         return "\n".join(lines[-limit:])
 
 
+DEFAULT_WATCH_INTERVAL = 45.0  # 30-60s retenu : seule cadence realiste sans
+# saturer un CPU deja charge (~6-78s par description vision, ~70-95s/tour LLM)
+
+
+class BufferWatcher(threading.Thread):
+    """Analyse periodiquement le dernier element d'un buffer (video ou audio).
+
+    Ne lit jamais en continu (impossible sur ce CPU) : reveil toutes les
+    `interval` secondes, prend le DERNIER element disponible (pas de file
+    d'attente qui s'accumule), l'analyse, transmet le resultat si non vide.
+    Demarrage/arret toujours explicites, jamais automatique.
+    """
+
+    def __init__(self, get_latest, describe, on_result, interval: float = DEFAULT_WATCH_INTERVAL) -> None:
+        super().__init__(daemon=True)
+        self._get_latest = get_latest
+        self._describe = describe
+        self._on_result = on_result
+        self.interval = interval
+        self._stop_event = threading.Event()
+
+    def run(self) -> None:
+        while not self._stop_event.wait(self.interval):
+            item = self._get_latest()
+            if item is None:
+                continue
+            try:
+                result = self._describe(item)
+            except Exception as exc:  # noqa: BLE001 - surface analysis errors instead of killing the watcher
+                result = f"erreur d'analyse: {exc}"
+            if result:
+                self._on_result(result)
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        # join() ne garantit pas l'arret si le thread est en plein appel
+        # describe() (jusqu'a ~90s sous contention CPU) - il ne repointe le
+        # stop_event qu'apres son retour. Timeout court : couvre le cas
+        # courant (thread endormi dans wait()), sans bloquer l'appelant sur
+        # le pire cas.
+        self.join(timeout=5)
+
+    def is_running(self) -> bool:
+        return self.is_alive()
+
+
 class Jarvis:
     def __init__(
         self,
@@ -579,6 +660,10 @@ class Jarvis:
         self.notifier = Notifier()
         self.confirm_fn = confirm_fn
         self.pending_command: str | None = None
+        self.vision_buffer = None
+        self.audio_buffer = None
+        self.vision_watcher = None
+        self.audio_watcher = None
 
     def confirm(self, action: str) -> bool:
         if not self.config.confirm_actions:
@@ -609,6 +694,7 @@ class Jarvis:
             except (EOFError, KeyboardInterrupt):
                 print()
                 self.speaker.say("Arret.")
+                self.shutdown()
                 return
 
             if not text:
@@ -631,6 +717,7 @@ class Jarvis:
 
         if command in {"quitte", "stop", "exit", "arret", "arrete", "au revoir"}:
             self.speaker.say("Arret du systeme.")
+            self.shutdown()
             return False
 
         if command in {"aide", "help", "commandes"}:
@@ -674,6 +761,68 @@ class Jarvis:
 
         if command in {"mes rappels", "liste rappels", "rappels"}:
             self.speaker.say(self.describe_pending_reminders())
+            return True
+
+        if command == "regarde":
+            self.speaker.say(self.look_and_describe(""))
+            return True
+
+        if command.startswith("regarde "):
+            question = cleaned_text.split(" ", 1)[1].strip()
+            self.speaker.say(self.look_and_describe(question))
+            return True
+
+        if command == "buffer video demarre":
+            self.speaker.say(self.start_vision_buffer())
+            return True
+
+        if command == "buffer video arrete":
+            self.speaker.say(self.stop_vision_buffer())
+            return True
+
+        if command == "buffer audio demarre":
+            self.speaker.say(self.start_audio_buffer())
+            return True
+
+        if command == "buffer audio arrete":
+            self.speaker.say(self.stop_audio_buffer())
+            return True
+
+        if command == "buffer demarre":
+            self.speaker.say(f"{self.start_vision_buffer()} {self.start_audio_buffer()}")
+            return True
+
+        if command == "buffer arrete":
+            self.speaker.say(f"{self.stop_vision_buffer()} {self.stop_audio_buffer()}")
+            return True
+
+        if command == "buffer statut":
+            self.speaker.say(self.describe_buffer_status())
+            return True
+
+        if command == "observe video":
+            self.speaker.say(self.start_vision_watch())
+            return True
+
+        if command == "observe audio":
+            self.speaker.say(self.start_audio_watch())
+            return True
+
+        if command == "observe":
+            self.speaker.say(f"{self.start_vision_watch()} {self.start_audio_watch()}")
+            return True
+
+        if command == "arrete observation":
+            self.speaker.say(f"{self.stop_vision_watch()} {self.stop_audio_watch()}")
+            return True
+
+        if command in {"mail", "mes mails"}:
+            self.speaker.say(self.describe_recent_emails())
+            return True
+
+        if command.startswith("mail cherche "):
+            query = cleaned_text.split(" ", 2)[2].strip()
+            self.speaker.say(self.search_emails(query))
             return True
 
         if command.startswith("cherche "):
@@ -823,6 +972,125 @@ class Jarvis:
         self.reminders.add(text, trigger_at)
         return f"Rappel programme pour {trigger_at.strftime('%H:%M')} : {text}"
 
+    def look_and_describe(self, question: str) -> str:
+        import vision
+
+        return vision.describe_scene(question)
+
+    def describe_recent_emails(self) -> str:
+        import gmail_client
+
+        return gmail_client.describe_recent_emails()
+
+    def search_emails(self, query: str) -> str:
+        import gmail_client
+
+        if not query:
+            return "mail cherche: requete manquante."
+        return gmail_client.describe_email_search(query)
+
+    def start_vision_buffer(self) -> str:
+        import vision
+
+        if self.vision_buffer is None:
+            self.vision_buffer = vision.VisionBuffer()
+        if self.vision_buffer.is_running():
+            return "Buffer video deja actif."
+        self.vision_buffer.start()
+        return "Buffer video demarre (capture toutes les 2s)."
+
+    def stop_vision_buffer(self) -> str:
+        if self.vision_buffer is None or not self.vision_buffer.is_running():
+            return "Buffer video deja arrete."
+        self.vision_buffer.stop()
+        return "Buffer video arrete."
+
+    def start_audio_buffer(self) -> str:
+        import voice as voice_module
+
+        if self.audio_buffer is None:
+            self.audio_buffer = voice_module.AudioBuffer()
+        if self.audio_buffer.is_running():
+            return "Buffer audio deja actif."
+        self.audio_buffer.start()
+        return "Buffer audio demarre."
+
+    def stop_audio_buffer(self) -> str:
+        if self.audio_buffer is None or not self.audio_buffer.is_running():
+            return "Buffer audio deja arrete."
+        self.audio_buffer.stop()
+        return "Buffer audio arrete."
+
+    def start_vision_watch(self) -> str:
+        import vision
+
+        start_message = self.start_vision_buffer()
+        if self.vision_watcher is not None and self.vision_watcher.is_running():
+            return f"{start_message} Observation video deja active."
+        interval = float(os.environ.get("JARVIS_WATCH_INTERVAL", DEFAULT_WATCH_INTERVAL))
+        self.vision_watcher = BufferWatcher(
+            get_latest=self.vision_buffer.latest_frame,
+            describe=vision.describe_image,
+            on_result=lambda text: self.speaker.say(f"Jarvis observe: {text}"),
+            interval=interval,
+        )
+        self.vision_watcher.start()
+        return f"{start_message} Observation active (analyse toutes les {int(interval)}s)."
+
+    def stop_vision_watch(self) -> str:
+        watcher_message = ""
+        if self.vision_watcher is not None and self.vision_watcher.is_running():
+            self.vision_watcher.stop()
+            watcher_message = "Observation video arretee. "
+        return watcher_message + self.stop_vision_buffer()
+
+    def start_audio_watch(self) -> str:
+        import voice as voice_module
+
+        start_message = self.start_audio_buffer()
+        if self.audio_watcher is not None and self.audio_watcher.is_running():
+            return f"{start_message} Observation audio deja active."
+        interval = float(os.environ.get("JARVIS_WATCH_INTERVAL", DEFAULT_WATCH_INTERVAL))
+        self.audio_watcher = BufferWatcher(
+            get_latest=self.audio_buffer.latest_chunk,
+            describe=voice_module.transcribe,
+            on_result=lambda text: self.speaker.say(f"Jarvis entend: {text}"),
+            interval=interval,
+        )
+        self.audio_watcher.start()
+        return f"{start_message} Observation active (analyse toutes les {int(interval)}s)."
+
+    def stop_audio_watch(self) -> str:
+        watcher_message = ""
+        if self.audio_watcher is not None and self.audio_watcher.is_running():
+            self.audio_watcher.stop()
+            watcher_message = "Observation audio arretee. "
+        return watcher_message + self.stop_audio_buffer()
+
+    def describe_buffer_status(self) -> str:
+        vision_running = self.vision_buffer is not None and self.vision_buffer.is_running()
+        audio_running = self.audio_buffer is not None and self.audio_buffer.is_running()
+        vision_watching = self.vision_watcher is not None and self.vision_watcher.is_running()
+        audio_watching = self.audio_watcher is not None and self.audio_watcher.is_running()
+        vision_count = self.vision_buffer.frame_count() if self.vision_buffer else 0
+        audio_count = self.audio_buffer.chunk_count() if self.audio_buffer else 0
+        return (
+            f"Buffer video: {'actif' if vision_running else 'arrete'} ({vision_count} frames)"
+            f"{', observation active' if vision_watching else ''}. "
+            f"Buffer audio: {'actif' if audio_running else 'arrete'} ({audio_count} segments)"
+            f"{', observation active' if audio_watching else ''}."
+        )
+
+    def shutdown(self) -> None:
+        if self.vision_watcher is not None:
+            self.vision_watcher.stop()
+        if self.audio_watcher is not None:
+            self.audio_watcher.stop()
+        if self.vision_buffer is not None:
+            self.vision_buffer.stop()
+        if self.audio_buffer is not None:
+            self.audio_buffer.stop()
+
     def describe_pending_reminders(self) -> str:
         pending = self.reminders.pending()
         if not pending:
@@ -933,6 +1201,15 @@ Observations deja recues:
             self.reminders.add(text, trigger_at)
             return f"create_reminder: rappel programme pour {trigger_at.strftime('%H:%M')}."
 
+        if tool_name == "look_around":
+            question = as_text(args.get("question"))
+            return "look_around: " + self.look_and_describe(question)
+
+        if tool_name == "check_gmail":
+            query = as_text(args.get("query"))
+            result = self.search_emails(query) if query else self.describe_recent_emails()
+            return "check_gmail: " + result
+
         return f"{tool_name}: outil non autorise."
 
     def status(self) -> str:
@@ -1038,7 +1315,7 @@ def main(argv: list[str]) -> int:
 
         from gui import JarvisGUI, deny_in_gui
 
-        response_queue: "queue_module.Queue[str]" = queue_module.Queue()
+        response_queue: "queue_module.Queue[object]" = queue_module.Queue()
         app = Jarvis(
             config=config,
             voice=False,

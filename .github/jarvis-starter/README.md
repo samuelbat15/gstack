@@ -115,8 +115,10 @@ dialogue de confirmation.
 
 ## Activer la voix
 
-Le mode voix est optionnel parce que les micros et pilotes Windows varient selon
-les machines.
+La reconnaissance vocale (ecoute) est 100% locale (`faster-whisper`, modele
+`base` par defaut) — aucune cle, aucun envoi audio vers un service cloud. Le
+mode voix reste optionnel car micros et pilotes Windows varient selon les
+machines.
 
 ```powershell
 python -m venv .venv
@@ -125,8 +127,32 @@ pip install -r requirements.txt
 python jarvis.py --voice
 ```
 
-Si l'installation de `PyAudio` echoue, garde le mode texte ou installe une roue
-compatible avec ta version de Python. Le coeur du systeme reste le meme.
+Dans la fenetre graphique (`python jarvis.py --gui`), un bouton "Parler" fait
+la meme chose : enregistre, transcrit localement, envoie automatiquement le
+message des que la transcription est prete.
+
+Si l'installation de `PyAudio` echoue, garde le mode texte ou installe une
+roue compatible avec ta version de Python. Pour plus de precision au prix de
+plus de lenteur, force un modele Whisper plus gros :
+
+```powershell
+$env:JARVIS_WHISPER_MODEL = "small"
+```
+
+### Voix de synthese (reponses parlees)
+
+Par defaut, Jarvis parle avec `pyttsx3` (voix Windows SAPI — locale mais
+robotique). Pour une voix naturelle, configure ElevenLabs dans `.env` :
+
+```env
+ELEVENLABS_API_KEY=ta_cle
+ELEVENLABS_VOICE_ID=id_de_la_voix_choisie
+```
+
+Choisis une voix sur [elevenlabs.io/app/voice-library](https://elevenlabs.io/app/voice-library)
+et copie son `voice_id`. Si la cle/voix sont absentes, ou si l'appel
+ElevenLabs echoue (reseau, quota), Jarvis bascule automatiquement sur
+`pyttsx3` — aucune configuration cassee ne bloque les reponses.
 
 ## Ajouter des actions
 

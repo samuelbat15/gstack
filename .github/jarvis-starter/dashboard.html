@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jarvis — live</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #141a24;
+    --surface-2: #1c2433;
+    --ink: #eef3fb;
+    --ink-dim: #93a1b8;
+    --ink-faint: #5c6a82;
+    --accent: #8fd3ff;
+    --accent-dim: #2a4a63;
+    --accent-glow: rgba(143, 211, 255, 0.28);
+    --ok: #4caf7d;
+    --ok-dim: rgba(76, 175, 125, 0.16);
+    --warn: #e0964a;
+    --warn-dim: rgba(224, 150, 74, 0.16);
+    --line: rgba(238, 243, 251, 0.09);
+    --line-strong: rgba(238, 243, 251, 0.16);
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f6fb; --surface: #ffffff; --surface-2: #e9eef8;
+    --ink: #16202e; --ink-dim: #55647a; --ink-faint: #8a95a8;
+    --accent: #2c8fc9; --accent-dim: #d3ecfb; --accent-glow: rgba(44,143,201,0.16);
+    --ok: #22824f; --ok-dim: rgba(34,130,79,0.12);
+    --warn: #b06a1e; --warn-dim: rgba(176,106,30,0.14);
+    --line: rgba(22,32,46,0.1); --line-strong: rgba(22,32,46,0.18);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f6fb; --surface: #ffffff; --surface-2: #e9eef8;
+      --ink: #16202e; --ink-dim: #55647a; --ink-faint: #8a95a8;
+      --accent: #2c8fc9; --accent-dim: #d3ecfb; --accent-glow: rgba(44,143,201,0.16);
+      --ok: #22824f; --ok-dim: rgba(34,130,79,0.12);
+      --warn: #b06a1e; --warn-dim: rgba(176,106,30,0.14);
+      --line: rgba(22,32,46,0.1); --line-strong: rgba(22,32,46,0.18);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; line-height: 1.5;
+  }
+  .display {
+    font-family: "Bahnschrift", "Arial Narrow", "Helvetica Neue Condensed", sans-serif;
+    font-weight: 800; text-transform: uppercase; letter-spacing: 0.01em;
+  }
+  .mono { font-family: "Cascadia Code", "SF Mono", "Consolas", monospace; font-variant-numeric: tabular-nums; }
+  .eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .masthead {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    margin-bottom: 1.5rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--line-strong);
+  }
+  .masthead .display { font-size: 1rem; letter-spacing: 0.08em; }
+  .masthead .display span { color: var(--accent); }
+  .live-pulse { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--ink-faint); }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+  .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.25rem; align-items: start; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px;
+    padding: 1.4rem 1.4rem 1.5rem; position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-dim) 70%, transparent);
+  }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1rem; }
+  .panel-head h2 { margin: 0; font-size: 1rem; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: "Cascadia Code", monospace; font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 0.22rem 0.6rem; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-faint);
+  }
+  .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .empty-state { color: var(--ink-faint); font-size: 0.88rem; padding: 1.5rem 0; text-align: center; }
+
+  .chat-history { display: flex; flex-direction: column; gap: 0.6rem; max-height: 420px; overflow-y: auto; margin-bottom: 1rem; }
+  .msg { padding: 0.55rem 0.8rem; border-radius: 5px; font-size: 0.88rem; max-width: 90%; }
+  .msg.user { align-self: flex-end; background: var(--accent-dim); color: var(--ink); }
+  .msg.jarvis { align-self: flex-start; background: var(--surface-2); color: var(--ink); }
+  .msg .who { display: block; font-size: 0.68rem; color: var(--ink-faint); margin-bottom: 0.15rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .confirm-chip {
+    display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;
+    padding: 0.4rem 0.7rem; border-radius: 5px; background: var(--warn-dim); color: var(--warn);
+    font-size: 0.8rem;
+  }
+  .confirm-chip button {
+    border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 4px;
+    padding: 0.15rem 0.55rem; font-size: 0.76rem; cursor: pointer; transition: transform 160ms ease-out;
+  }
+  .confirm-chip button:active { transform: scale(0.97); }
+
+  .chat-form { display: flex; gap: 0.5rem; }
+  .chat-form input[type="text"] {
+    flex: 1; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong);
+    border-radius: 5px; padding: 0.55rem 0.7rem; font-size: 0.88rem; outline: none;
+    transition: border-color 160ms ease-out;
+  }
+  .chat-form input[type="text"]:focus { border-color: var(--accent); }
+  .chat-form button {
+    background: var(--surface-2); color: var(--accent); border: 1px solid var(--line-strong);
+    border-radius: 5px; padding: 0.55rem 1rem; font-size: 0.85rem; cursor: pointer;
+    transition: transform 160ms ease-out;
+  }
+  .chat-form button:active { transform: scale(0.97); }
+
+  .reminder-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .reminder {
+    display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.7rem 0.85rem;
+    background: var(--surface-2); border-radius: 5px; font-size: 0.86rem;
+  }
+  .reminder .r-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 0.4rem; flex-shrink: 0; }
+  .reminder.pending .r-dot { background: var(--warn); }
+  .reminder.fired .r-dot { background: var(--ink-faint); }
+  .reminder .r-body { flex: 1; min-width: 0; }
+  .reminder .r-text { font-weight: 500; }
+  .reminder.fired .r-text { color: var(--ink-faint); text-decoration: line-through; }
+  .reminder .r-time { font-family: "Cascadia Code", monospace; font-size: 0.74rem; color: var(--ink-faint); margin-top: 0.2rem; }
+
+  .reminder-form { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+  .reminder-form input {
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong);
+    border-radius: 5px; padding: 0.5rem 0.65rem; font-size: 0.82rem; outline: none;
+  }
+  .reminder-form input:focus { border-color: var(--accent); }
+  .reminder-form button {
+    background: var(--surface-2); color: var(--accent); border: 1px solid var(--line-strong);
+    border-radius: 5px; padding: 0.5rem 0.8rem; font-size: 0.82rem; cursor: pointer;
+    transition: transform 160ms ease-out;
+  }
+  .reminder-form button:active { transform: scale(0.97); }
+
+  footer { margin-top: 1.5rem; text-align: center; font-size: 0.74rem; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="masthead">
+    <span class="display">jarvis<span>·</span>live</span>
+    <span class="status-badge" id="ai-status"><span class="dot"></span><span id="ai-status-text">—</span></span>
+  </div>
+
+  <div class="grid2">
+
+    <div class="panel" id="chat-panel">
+      <div class="panel-head">
+        <h2 class="display" style="font-size:0.92rem;">Messages</h2>
+        <span class="live-pulse"><span class="live-dot"></span>connecté</span>
+      </div>
+      <div class="chat-history" id="chat-history">
+        <div class="empty-state">Envoie un message pour parler à Jarvis.</div>
+      </div>
+      <form class="chat-form" id="chat-form">
+        <input type="text" id="chat-input" placeholder="Écris un message…" autocomplete="off" />
+        <button type="submit">Envoyer</button>
+      </form>
+    </div>
+
+    <div class="panel" id="reminders-panel">
+      <div class="panel-head">
+        <h2 class="display" style="font-size:0.92rem;">Rappels proactifs</h2>
+        <span class="eyebrow mono" id="reminders-count">0</span>
+      </div>
+      <div id="reminders-body">
+        <div class="empty-state">Aucun rappel enregistré.</div>
+      </div>
+      <form class="reminder-form" id="reminder-form">
+        <input type="text" id="reminder-when" placeholder="dans 20 minutes / a 15h00" />
+        <input type="text" id="reminder-text" placeholder="texte du rappel" />
+        <button type="submit">Programmer</button>
+      </form>
+    </div>
+
+  </div>
+
+  <footer>jarvis-starter · dashboard local · <span class="mono" id="last-poll">—</span></footer>
+</div>
+
+<script>
+let lastUserText = "";
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleTimeString("fr-FR"); } catch { return iso; }
+}
+
+function appendMessage(role, text) {
+  const history = document.getElementById("chat-history");
+  const empty = history.querySelector(".empty-state");
+  if (empty) empty.remove();
+
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  const who = document.createElement("span");
+  who.className = "who";
+  who.textContent = role === "user" ? "vous" : "jarvis";
+  div.appendChild(who);
+  div.appendChild(document.createTextNode(text));
+  history.appendChild(div);
+  history.scrollTop = history.scrollHeight;
+  return div;
+}
+
+function appendConfirmChip(action, container) {
+  const chip = document.createElement("div");
+  chip.className = "confirm-chip";
+  chip.innerHTML = `<span>Confirmation requise : ${action}</span>`;
+  const btn = document.createElement("button");
+  btn.textContent = "Confirmer";
+  btn.onclick = () => sendMessage(lastUserText, true);
+  chip.appendChild(btn);
+  container.appendChild(chip);
+}
+
+async function sendMessage(text, confirm) {
+  if (!text) return;
+  if (!confirm) {
+    appendMessage("user", text);
+    lastUserText = text;
+  }
+  try {
+    const res = await fetch("/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, confirm: !!confirm }),
+    });
+    const data = await res.json();
+    const div = appendMessage("jarvis", data.response || "(pas de réponse)");
+    if (data.needs_confirmation) {
+      appendConfirmChip(data.action, div);
+    }
+  } catch (e) {
+    appendMessage("jarvis", "Erreur: backend injoignable.");
+  }
+}
+
+document.getElementById("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = document.getElementById("chat-input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  sendMessage(text, false);
+});
+
+document.getElementById("reminder-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const whenInput = document.getElementById("reminder-when");
+  const textInput = document.getElementById("reminder-text");
+  const when = whenInput.value.trim();
+  const text = textInput.value.trim();
+  if (!when || !text) return;
+  await fetch("/reminders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ when, text }),
+  });
+  whenInput.value = "";
+  textInput.value = "";
+  pollReminders();
+});
+
+function renderReminders(data) {
+  const list = data.reminders || [];
+  const body = document.getElementById("reminders-body");
+  const count = document.getElementById("reminders-count");
+  const pending = list.filter(r => !r.fired);
+  count.textContent = pending.length + " en attente";
+
+  if (!list.length) {
+    body.innerHTML = '<div class="empty-state">Aucun rappel enregistré.</div>';
+    return;
+  }
+
+  const sorted = list.slice().sort((a, b) => (a.fired === b.fired ? 0 : a.fired ? 1 : -1));
+  let html = '<div class="reminder-list">';
+  sorted.forEach(r => {
+    const cls = r.fired ? "fired" : "pending";
+    html += `<div class="reminder ${cls}">
+      <span class="r-dot"></span>
+      <div class="r-body">
+        <div class="r-text">${r.text}</div>
+        <div class="r-time mono">${fmtTime(r.trigger_at)}${r.fired ? " · déclenché" : ""}</div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+async function pollReminders() {
+  try {
+    const res = await fetch("/reminders");
+    renderReminders(await res.json());
+  } catch (e) { /* ignore transient failure */ }
+}
+
+async function pollStatus() {
+  try {
+    const res = await fetch("/status");
+    const data = await res.json();
+    document.getElementById("ai-status-text").textContent = data.status || "—";
+  } catch (e) { /* ignore transient failure */ }
+}
+
+function tick() {
+  pollReminders();
+  pollStatus();
+  document.getElementById("last-poll").textContent = new Date().toLocaleTimeString("fr-FR");
+}
+
+tick();
+setInterval(tick, 1500);
+</script>
+</body>
+</html>

@@ -4,3 +4,10 @@ pyttsx3>=2.90
 SpeechRecognition>=3.10.0
 PyAudio>=0.2.14
 windows-toasts>=1.0
+
+# Reconnaissance vocale locale (Whisper), remplace l'appel cloud Google STT.
+faster-whisper>=1.0
+
+# Synthese vocale ElevenLabs (optionnelle - repli automatique sur pyttsx3
+# si ELEVENLABS_API_KEY/ELEVENLABS_VOICE_ID absents ou l'appel echoue).
+elevenlabs>=1.0
