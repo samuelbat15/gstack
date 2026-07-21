@@ -1281,6 +1281,50 @@ Observations deja recues:
         self.speaker.say(f"Fichier {path} ecrit.")
         return f"fichier ecrit : {path} ({size} octets)."
 
+    def run_command(self, command: str, timeout: int = 30, max_chars: int = 6000) -> str:
+        if not self.confirm(f"executer la commande '{command}'"):
+            self.speaker.say("Annule.")
+            return "annule par l'utilisateur."
+
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if platform.system() == "Windows" else 0
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=creationflags,
+        )
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            if platform.system() == "Windows":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                    capture_output=True,
+                )
+            else:
+                process.kill()
+            process.communicate()
+            message = f"timeout apres {timeout}s."
+            self.speaker.say(f"Erreur: {message}")
+            return message
+        except OSError as exc:
+            message = f"erreur - {exc}"
+            self.speaker.say(f"Erreur: {message}")
+            return message
+
+        output = stdout
+        if stderr:
+            output += f"\n[stderr] {stderr}"
+        output = output.strip()
+        if len(output) > max_chars:
+            output = output[:max_chars] + " [tronque]"
+
+        self.speaker.say(f"Commande terminee, code {process.returncode}.")
+        return f"commande terminee (code {process.returncode}) :\n{output}"
+
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Jarvis starter local.")
