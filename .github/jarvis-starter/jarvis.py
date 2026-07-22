@@ -59,6 +59,8 @@ Outils autorises:
 - create_reminder {"when": "dans 20 minutes | a 15h00", "text": "texte du rappel"}
 - look_around {"question": "ce que tu veux savoir de la scene (optionnel)"}
 - check_gmail {"query": "requete de recherche Gmail (optionnel, vide = mails recents)"}
+- write_file {"path": "chemin/fichier", "content": "contenu texte du fichier"}
+- run_command {"command": "commande shell a executer"}
 
 Regles:
 - N'invente jamais le resultat d'un outil.
@@ -1209,6 +1211,19 @@ Observations deja recues:
             query = as_text(args.get("query"))
             result = self.search_emails(query) if query else self.describe_recent_emails()
             return "check_gmail: " + result
+
+        if tool_name == "write_file":
+            path = as_text(args.get("path"))
+            content = as_text(args.get("content"))
+            if not path:
+                return "write_file: chemin manquant."
+            return "write_file: " + self.write_file(path, content)
+
+        if tool_name == "run_command":
+            command = as_text(args.get("command"))
+            if not command:
+                return "run_command: commande manquante."
+            return "run_command: " + self.run_command(command)
 
         return f"{tool_name}: outil non autorise."
 

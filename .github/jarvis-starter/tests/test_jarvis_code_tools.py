@@ -98,3 +98,40 @@ class TestRunCommand:
 
         elapsed = time.monotonic() - start
         assert elapsed < 3, f"run_command took {elapsed:.2f}s, expected it to return within ~1-2s of the timeout"
+
+
+class TestExecuteAgentToolIntegration:
+    def test_write_file_tool_dispatch(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+        target = tmp_path / "agent_written.py"
+
+        result = jarvis.execute_agent_tool(
+            "write_file", {"path": str(target), "content": "x = 42"}
+        )
+
+        assert result.startswith("write_file: fichier ecrit")
+        assert target.read_text(encoding="utf-8") == "x = 42"
+
+    def test_write_file_missing_path(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+
+        result = jarvis.execute_agent_tool("write_file", {"content": "x = 1"})
+
+        assert result == "write_file: chemin manquant."
+
+    def test_run_command_tool_dispatch(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+
+        result = jarvis.execute_agent_tool(
+            "run_command", {"command": "python -c \"print('ok')\""}
+        )
+
+        assert result.startswith("run_command: commande terminee")
+        assert "ok" in result
+
+    def test_run_command_missing_command(self, tmp_path):
+        jarvis = make_jarvis(tmp_path)
+
+        result = jarvis.execute_agent_tool("run_command", {})
+
+        assert result == "run_command: commande manquante."
