@@ -402,6 +402,22 @@ link_claude_skill_dirs() {
       # Validate target isn't a symlink before creating the link
       if [ -L "$target/SKILL.md" ]; then rm "$target/SKILL.md"; fi
       ln -snf "$gstack_dir/$dir_name/SKILL.md" "$target/SKILL.md"
+      # review/ runtime assets: SKILL.md reads checklist.md and
+      # greptile-triage.md via a relative path resolved against this
+      # flattened dir. Codex/Kiro/Factory/OpenCode installers already copy
+      # these; mirror that here so /review doesn't 404 on Claude.
+      if [ "$dir_name" = "review" ]; then
+        for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
+          if [ -f "$gstack_dir/$dir_name/$f" ]; then
+            if [ -L "$target/$f" ]; then rm -f "$target/$f"; fi
+            ln -snf "$gstack_dir/$dir_name/$f" "$target/$f"
+          fi
+        done
+        if [ -d "$gstack_dir/$dir_name/specialists" ]; then
+          if [ -L "$target/specialists" ]; then rm -f "$target/specialists"; fi
+          ln -snf "$gstack_dir/$dir_name/specialists" "$target/specialists"
+        fi
+      fi
       linked+=("$link_name")
     fi
   done
