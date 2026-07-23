@@ -135,3 +135,41 @@ class TestExecuteAgentToolIntegration:
         result = jarvis.execute_agent_tool("run_command", {})
 
         assert result == "run_command: commande manquante."
+
+
+class TestLooksLikeLocalCommand:
+    def test_recognizes_execute_prefix(self):
+        assert looks_like_local_command("execute python --version")
+
+    def test_recognizes_ecris_prefix(self):
+        assert looks_like_local_command("ecris test.py : print(1)")
+
+
+class TestHandleDirectCommands:
+    def test_execute_prefix_runs_command(self, tmp_path, monkeypatch):
+        jarvis = make_jarvis(tmp_path)
+        spoken = []
+        monkeypatch.setattr(jarvis.speaker, "say", spoken.append)
+
+        continue_running = jarvis.handle("execute python -c \"print('ok')\"")
+
+        assert continue_running is True
+        assert any("code 0" in msg for msg in spoken)
+
+    def test_ecris_prefix_writes_file(self, tmp_path, monkeypatch):
+        jarvis = make_jarvis(tmp_path)
+        target = tmp_path / "note.py"
+        monkeypatch.setattr(jarvis.speaker, "say", lambda text: None)
+
+        jarvis.handle(f"ecris {target} : print(1)")
+
+        assert target.read_text(encoding="utf-8") == "print(1)"
+
+    def test_ecris_without_separator_shows_format_hint(self, tmp_path, monkeypatch):
+        jarvis = make_jarvis(tmp_path)
+        spoken = []
+        monkeypatch.setattr(jarvis.speaker, "say", spoken.append)
+
+        jarvis.handle("ecris just-a-path-no-separator")
+
+        assert any("Format attendu" in msg for msg in spoken)

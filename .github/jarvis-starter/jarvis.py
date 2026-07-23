@@ -99,6 +99,12 @@ Commandes locales:
 - arrete observation
 - mail / mes mails (emails recents)
 - mail cherche <requete Gmail>
+- execute <commande shell>
+- ecris <chemin> : <contenu>
+
+Attention: execute et ecris n'ont aucune restriction de dossier ni de
+commande bloquee -- la confirmation [o/N] est la seule protection, lis
+bien ce qui va s'executer avant de repondre "oui".
 
 Exemples:
 - ouvre youtube
@@ -204,7 +210,18 @@ def looks_like_local_command(text: str) -> bool:
         "mes mails",
     }
     return command in exact_commands or command.startswith(
-        ("note ", "cherche ", "ouvre ", "lance ", "graphity ", "rappelle-moi ", "regarde ", "mail cherche ")
+        (
+            "note ",
+            "cherche ",
+            "ouvre ",
+            "lance ",
+            "graphity ",
+            "rappelle-moi ",
+            "regarde ",
+            "mail cherche ",
+            "execute ",
+            "ecris ",
+        )
     )
 
 
@@ -837,6 +854,21 @@ class Jarvis:
             target = cleaned_text.split(" ", 1)[1].strip()
             if target:
                 self.open_allowed_target(target)
+            return True
+
+        if command.startswith("execute "):
+            cmd = cleaned_text.split(" ", 1)[1].strip()
+            if cmd:
+                self.run_command(cmd)
+            return True
+
+        if command.startswith("ecris "):
+            remainder = cleaned_text.split(" ", 1)[1].strip()
+            if " : " in remainder:
+                path, content = remainder.split(" : ", 1)
+                self.write_file(path.strip(), content.strip())
+            else:
+                self.speaker.say("Format attendu: ecris <chemin> : <contenu>")
             return True
 
         if not self.ai.enabled:
