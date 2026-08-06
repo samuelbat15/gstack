@@ -98,7 +98,7 @@ describe('Source-level guard: /health does NOT surface ptyToken', () => {
     const healthIdx = SERVER_SRC.indexOf("url.pathname === '/health'");
     expect(healthIdx).toBeGreaterThan(-1);
     // Slice from /health through the response close-bracket.
-    const slice = SERVER_SRC.slice(healthIdx, healthIdx + 2000);
+    const slice = SERVER_SRC.slice(healthIdx, healthIdx + 3500);
     // The /health JSON.stringify body must not mention the cookie token.
     // It's allowed to include `terminalPort` (a port number, not auth).
     expect(slice).not.toContain('ptyToken');

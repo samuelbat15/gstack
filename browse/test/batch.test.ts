@@ -12,20 +12,6 @@ import { BrowserManager } from '../src/browser-manager';
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
-let serverPort: number;
-
-// Helper to send batch requests to the browse server
-async function batch(commands: any[], opts: { timeout?: number; stream?: boolean } = {}): Promise<any> {
-  const res = await fetch(`http://127.0.0.1:${serverPort}/batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commands, ...opts }),
-  });
-  if (opts.stream) {
-    return res; // return raw response for SSE testing
-  }
-  return res.json();
-}
 
 beforeAll(async () => {
   testServer = startTestServer(0);
@@ -33,13 +19,6 @@ beforeAll(async () => {
 
   bm = new BrowserManager();
   await bm.launch();
-  serverPort = bm.serverPort;
-
-  // Start the browse server
-  const { startServer } = await import('../src/server');
-  // The server is already started by launch — we need the port
-  // Actually, BrowserManager.launch() starts the browser, not the server.
-  // The test needs to start a server. Let's use the existing server infrastructure.
 });
 
 afterAll(() => {
