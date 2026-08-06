@@ -200,7 +200,8 @@ describe('context-save: filename collision', () => {
     // Path must differ (append-only contract).
     expect(kv.FILE).not.toBe(`${tmp}/20260419-120000-foo.md`);
     // Suffix format: base-XXXX.md where XXXX matches the suffix allowlist.
-    expect(kv.FILE).toMatch(new RegExp(`^${tmp.replace(/[/.]/g, '\\$&')}/20260419-120000-foo-[a-z0-9]+\\.md$`));
+    // Escape backslashes too so Windows paths (C:\...) don't produce invalid regex.
+    expect(kv.FILE).toMatch(new RegExp(`^${tmp.replace(/[/.\\/]/g, '\\$&')}/20260419-120000-foo-[a-z0-9]+\\.md$`));
   });
 
   test('collision suffix preserves append-only — prior file intact', () => {
@@ -321,7 +322,10 @@ describe('migration v1.1.3.0: HOME guard', () => {
   beforeEach(() => { tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-home-')); });
   afterEach(() => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('HOME unset → exits 0 with diagnostic, no filesystem changes', () => {
+  // On Windows, Git Bash auto-injects HOME from USERPROFILE even when it's absent
+  // from the explicitly provided env dict — making it impossible to test the HOME-unset
+  // guard without `env -i` (not available on Windows). Skip these tests on Windows.
+  test.skipIf(process.platform === 'win32')('HOME unset → exits 0 with diagnostic, no filesystem changes', () => {
     // Create a file that would be wiped by an HOME="" bug: /.claude/skills/gstack/checkpoint
     // (not actually writable by the test, but we verify the script doesn't TRY).
     // Spawn without HOME in env.
@@ -335,7 +339,7 @@ describe('migration v1.1.3.0: HOME guard', () => {
     expect(result.stderr.toString()).toContain('HOME is unset');
   });
 
-  test('HOME="" → exits 0 with diagnostic', () => {
+  test.skipIf(process.platform === 'win32')('HOME="" → exits 0 with diagnostic', () => {
     const result = spawnSync('bash', [MIGRATION], {
       env: { HOME: '', PATH: process.env.PATH || '/usr/bin:/bin' },
       stdio: ['ignore', 'pipe', 'pipe'],
