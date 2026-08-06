@@ -52,3 +52,85 @@ def dispatch_tool_call(
         return runtime.memory.remember(str(text))
 
     raise ValueError(f"unknown tool: {tool_name}")
+
+
+import anyio
+import mcp.types as types
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+
+from vault_memory import DEFAULT_VAULT_PATH
+
+server: Server = Server("graphify")
+
+_runtime: GraphityRuntime | None = None
+
+
+def _get_runtime() -> GraphityRuntime:
+    if _runtime is None:
+        raise RuntimeError("graphify_mcp_server: runtime not initialized, call main() first")
+    return _runtime
+
+
+@server.list_tools()
+async def list_tools() -> list[types.Tool]:
+    return [
+        types.Tool(
+            name="graphify_recall",
+            description=(
+                "Recall information from the Obsidian vault's Graphify "
+                "knowledge graph for a given query or topic."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The question or topic to search for.",
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
+        types.Tool(
+            name="graphify_remember",
+            description=(
+                "Record a durable fact or note into the Obsidian vault, "
+                "to be indexed into the Graphify knowledge graph."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The fact or note text to remember.",
+                    },
+                },
+                "required": ["text"],
+            },
+        ),
+    ]
+
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    result = dispatch_tool_call(_get_runtime(), name, arguments)
+    return [types.TextContent(type="text", text=result)]
+
+
+async def _run() -> None:
+    global _runtime
+    vault_path = Path(DEFAULT_VAULT_PATH)
+    validate_vault(vault_path)
+    _runtime = GraphityRuntime(DEFAULT_DATA_DIR, vault_path)
+
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())
+
+
+def main() -> None:
+    anyio.run(_run)
+
+
+if __name__ == "__main__":
+    main()

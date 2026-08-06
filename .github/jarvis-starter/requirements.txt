@@ -11,3 +11,10 @@ faster-whisper>=1.0
 # Synthese vocale ElevenLabs (optionnelle - repli automatique sur pyttsx3
 # si ELEVENLABS_API_KEY/ELEVENLABS_VOICE_ID absents ou l'appel echoue).
 elevenlabs>=1.0
+
+# MCP server: exposes graphify_recall/graphify_remember to OpenJarvis.
+# Pinned below 2.0.0: the wiring code in graphify_mcp_server.py targets
+# mcp==1.27.1's Server.list_tools()/Server.call_tool() decorator API, which
+# mcp==2.0.0 removed. Verified working under mcp==1.27.1 on this machine;
+# do not bump past 2.0.0 without rewriting the wiring code.
+mcp>=1.27.0,<2.0.0
