@@ -185,7 +185,7 @@ async function handleTest(args: string[], ctx: SkillCommandContext): Promise<str
     throw new Error(`Skill "${name}" has no script.test.ts at ${testFile}`);
   }
 
-  const proc = Bun.spawn(['bun', 'test', testFile], {
+  const proc = Bun.spawn([process.execPath, 'test', testFile], {
     cwd: skill.dir,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -263,7 +263,7 @@ export async function spawnSkill(opts: SpawnSkillOptions): Promise<SpawnSkillRes
       throw new Error(`Skill "${opts.skill.name}" missing script.ts at ${scriptPath}`);
     }
 
-    const proc = Bun.spawn(['bun', 'run', scriptPath, '--', ...opts.skillArgs], {
+    const proc = Bun.spawn([process.execPath, 'run', scriptPath, '--', ...opts.skillArgs], {
       cwd: opts.skill.dir,
       env,
       stdout: 'pipe',
