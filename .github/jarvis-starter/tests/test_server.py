@@ -12,6 +12,7 @@ import pytest
 from jarvis import Config
 from server import (
     ConfirmGate,
+    RateLimiter,
     ReminderDaemonThread,
     SessionStore,
     build_app,
@@ -120,6 +121,33 @@ class TestIsAuthorized:
         assert is_authorized("192.168.1.42", "secret", SessionStore(), "wrong", "") is False
 
 
+class TestRateLimiter:
+    def test_allows_requests_under_the_limit(self):
+        limiter = RateLimiter(max_requests=3, window_seconds=60)
+        assert limiter.is_allowed("1.2.3.4") is True
+        assert limiter.is_allowed("1.2.3.4") is True
+        assert limiter.is_allowed("1.2.3.4") is True
+
+    def test_blocks_requests_over_the_limit(self):
+        limiter = RateLimiter(max_requests=2, window_seconds=60)
+        assert limiter.is_allowed("1.2.3.4") is True
+        assert limiter.is_allowed("1.2.3.4") is True
+        assert limiter.is_allowed("1.2.3.4") is False
+
+    def test_tracks_each_ip_independently(self):
+        limiter = RateLimiter(max_requests=1, window_seconds=60)
+        assert limiter.is_allowed("1.2.3.4") is True
+        assert limiter.is_allowed("5.6.7.8") is True
+        assert limiter.is_allowed("1.2.3.4") is False
+        assert limiter.is_allowed("5.6.7.8") is False
+
+    def test_old_hits_outside_the_window_are_forgotten(self):
+        limiter = RateLimiter(max_requests=1, window_seconds=10)
+        assert limiter.is_allowed("1.2.3.4", now=0.0) is True
+        assert limiter.is_allowed("1.2.3.4", now=5.0) is False
+        assert limiter.is_allowed("1.2.3.4", now=11.0) is True
+
+
 class TestTokenLoginRoute:
     def test_valid_token_query_param_sets_session_cookie(self, tmp_path, monkeypatch):
         monkeypatch.setattr("server.load_config", lambda path: make_config())
@@ -184,7 +212,10 @@ class TestMessageEndpoint:
         assert payload["needs_confirmation"] is True
         assert "youtube" in payload["action"]
 
-    def test_resending_with_confirm_true_approves_the_same_action(self, running_server):
+    def test_resending_with_confirm_true_approves_the_same_action(self, running_server, monkeypatch):
+        opened_urls = []
+        monkeypatch.setattr("webbrowser.open", opened_urls.append)
+
         base_url, _, _ = running_server
         request_json(f"{base_url}/message", "POST", {"text": "ouvre youtube"})
         status, payload = request_json(
@@ -192,6 +223,7 @@ class TestMessageEndpoint:
         )
         assert status == 200
         assert payload["needs_confirmation"] is False
+        assert opened_urls == ["https://www.youtube.com"]
 
 
 class TestRemindersEndpoint:
@@ -232,6 +264,26 @@ class TestConfirmGate:
         assert gate("ouvrir youtube") is True
         assert gate("ouvrir youtube") is False
 
+
+class TestRateLimitingIntegration:
+    def test_loopback_bypasses_the_rate_limit_even_when_restrictive(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("server.load_config", lambda path: make_config())
+        jarvis, gate = build_app(tmp_path / "config.json", tmp_path, tmp_path / "vault")
+        # A limit of 1 request/minute would block a second call from a real
+        # remote client instantly - loopback must sail through regardless.
+        handler = make_handler(jarvis, gate, rate_limiter=RateLimiter(max_requests=1, window_seconds=60))
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            host, port = httpd.server_address
+            base_url = f"http://{host}:{port}"
+            for _ in range(5):
+                status, _ = request_json(f"{base_url}/status")
+                assert status == 200
+        finally:
+            httpd.shutdown()
+            thread.join(timeout=2)
 
 class TestReminderDaemonThread:
     def test_fires_due_reminder_and_marks_it(self, tmp_path, monkeypatch):

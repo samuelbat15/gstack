@@ -67,6 +67,34 @@ def is_authorized(client_ip: str, api_token: str, sessions: SessionStore, bearer
     return sessions.is_valid(cookie)
 
 
+class RateLimiter:
+    """Sliding-window request counter, per client IP.
+
+    Loopback is exempt at the call site (not here) - the dashboard alone polls
+    /status and /reminders every 1.5s, which would blow past any reasonable
+    remote-facing limit. Checked before auth, so it also throttles brute-force
+    token/login attempts, not just authenticated traffic.
+    """
+
+    def __init__(self, max_requests: int = 60, window_seconds: float = 60.0) -> None:
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def is_allowed(self, client_ip: str, now: float | None = None) -> bool:
+        now = time.monotonic() if now is None else now
+        cutoff = now - self.window_seconds
+        with self._lock:
+            hits = self._hits.setdefault(client_ip, [])
+            while hits and hits[0] < cutoff:
+                hits.pop(0)
+            if len(hits) >= self.max_requests:
+                return False
+            hits.append(now)
+            return True
+
+
 class ConfirmGate:
     """Two-phase confirmation for actions that would otherwise be silently denied.
 
@@ -130,9 +158,11 @@ def make_handler(
     gate: ConfirmGate,
     api_token: str = "",
     sessions: SessionStore | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     responses: list[str] = jarvis._http_responses  # type: ignore[attr-defined]
     sessions = sessions if sessions is not None else SessionStore()
+    rate_limiter = rate_limiter if rate_limiter is not None else RateLimiter()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - stdlib signature
@@ -146,6 +176,12 @@ def make_handler(
                 extract_bearer_token(self.headers),
                 extract_session_cookie(self.headers),
             )
+
+        def _rate_limited(self) -> bool:
+            client_ip = self.client_address[0]
+            if is_loopback(client_ip):
+                return False
+            return not rate_limiter.is_allowed(client_ip)
 
         def _send_json(self, status: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -167,6 +203,10 @@ def make_handler(
             return data if isinstance(data, dict) else {}
 
         def do_GET(self) -> None:  # noqa: N802 - stdlib method name
+            if self._rate_limited():
+                self._send_json(429, {"error": "trop de requetes, reessaie plus tard"})
+                return
+
             parsed = urlsplit(self.path)
 
             if parsed.path == "/":
@@ -205,6 +245,10 @@ def make_handler(
             self._send_json(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802 - stdlib method name
+            if self._rate_limited():
+                self._send_json(429, {"error": "trop de requetes, reessaie plus tard"})
+                return
+
             if not self._authorized():
                 self._send_json(401, {"error": "authentification requise"})
                 return
@@ -271,7 +315,15 @@ def run_server(host: str | None = None, port: int | None = None) -> None:
     daemon = ReminderDaemonThread(jarvis)
     daemon.start()
 
-    handler = make_handler(jarvis, gate, api_token=api_token, sessions=SessionStore())
+    rate_limit_max = int(os.environ.get("JARVIS_RATE_LIMIT", "60"))
+    rate_limit_window = float(os.environ.get("JARVIS_RATE_LIMIT_WINDOW", "60"))
+    handler = make_handler(
+        jarvis,
+        gate,
+        api_token=api_token,
+        sessions=SessionStore(),
+        rate_limiter=RateLimiter(max_requests=rate_limit_max, window_seconds=rate_limit_window),
+    )
     httpd = ThreadingHTTPServer((host, port), handler)
     if api_token:
         print(f"Jarvis backend en ecoute sur http://{host}:{port} (token requis hors localhost)")

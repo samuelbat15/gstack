@@ -6,11 +6,31 @@ PyAudio>=0.2.14
 windows-toasts>=1.0
 
 # Reconnaissance vocale locale (Whisper), remplace l'appel cloud Google STT.
+# ctranslate2 4.8.1 (dependance de faster-whisper) segfault au chargement
+# du modele sur ce Windows/CPU (Intel i5-8300H) - verifie le 2026-07-16,
+# reproduit avec compute_type int8/float32/default, corrige en revenant a
+# 4.4.0. Epingle explicitement pour ne pas re-remonter dessus au hasard.
 faster-whisper>=1.0
+ctranslate2==4.4.0
 
 # Synthese vocale ElevenLabs (optionnelle - repli automatique sur pyttsx3
 # si ELEVENLABS_API_KEY/ELEVENLABS_VOICE_ID absents ou l'appel echoue).
 elevenlabs>=1.0
+
+# Vision webcam ponctuelle (capture + description via Ollama moondream).
+# ATTENTION environnement Anaconda partage : opencv-python declare
+# numpy>=2 mais fonctionne en pratique avec numpy<2 (deja verifie sur ce
+# poste). Si `pip install -r requirements.txt` tente de monter numpy vers
+# 2.x et casse pandas/matplotlib/scipy, redescends avec :
+#   pip install "numpy<2,>=1.23.2"
+# Une venv dediee (voir README) evite ce risque pour de bon.
+opencv-python>=4.9
+
+# Gmail (lecture seule) - necessite un projet Google Cloud + credentials.json
+# (voir README section Gmail). Aucune cle API classique, OAuth uniquement.
+google-api-python-client>=2.100
+google-auth-httplib2>=0.2
+google-auth-oauthlib>=1.2
 
 # MCP server: exposes graphify_recall/graphify_remember to OpenJarvis.
 # Pinned below 2.0.0: the wiring code in graphify_mcp_server.py targets

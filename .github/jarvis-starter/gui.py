@@ -103,6 +103,24 @@ class JarvisGUI:
         self.speak_button.bind("<ButtonPress-1>", self._on_speak_button_press)
         self.speak_button.bind("<ButtonRelease-1>", self._on_speak_button_release)
 
+        # Camera-initiated, always explicit (never auto-triggered) -- same
+        # occasional-action animation treatment as Parler.
+        self.look_button = tk.Button(
+            entry_frame,
+            text="Regarder",
+            command=self._on_look,
+            bg=BUTTON_BG,
+            fg=JARVIS_FG,
+            activebackground=BUTTON_PRESS_BG,
+            activeforeground=JARVIS_FG,
+            relief="flat",
+            bd=0,
+            padx=10,
+        )
+        self.look_button.pack(side="left", padx=(4, 0))
+        self.look_button.bind("<ButtonPress-1>", self._on_look_button_press)
+        self.look_button.bind("<ButtonRelease-1>", self._on_look_button_release)
+
     def _on_button_press(self, event: object = None) -> None:
         self.send_button.configure(bg=BUTTON_PRESS_BG)
 
@@ -114,6 +132,12 @@ class JarvisGUI:
 
     def _on_speak_button_release(self, event: object = None) -> None:
         self.speak_button.configure(bg=BUTTON_BG)
+
+    def _on_look_button_press(self, event: object = None) -> None:
+        self.look_button.configure(bg=BUTTON_PRESS_BG)
+
+    def _on_look_button_release(self, event: object = None) -> None:
+        self.look_button.configure(bg=BUTTON_BG)
 
     def _append_line(self, text: str, tag: str | None = None) -> None:
         self.history.configure(state="normal")
@@ -171,6 +195,29 @@ class JarvisGUI:
             return
         self._send_text(text)
 
+    def _on_look(self, event: object = None) -> None:
+        self.look_button.configure(state="disabled")
+        self._append_line("Jarvis regarde...", "jarvis")
+        threading.Thread(target=self._capture_and_describe, daemon=True).start()
+
+    def _capture_and_describe(self) -> None:
+        try:
+            import vision
+
+            image_bytes = vision.capture_photo()
+            self.response_queue.put(("vision_status", "Analyse..."))
+            text = vision.describe_image(image_bytes).strip()
+        except Exception as exc:  # noqa: BLE001 - surface camera/model errors instead of crashing the thread
+            text = f"vision: erreur camera - {exc}"
+
+        self.response_queue.put(("vision_result", text))
+
+    def _handle_vision_result(self, text: str) -> None:
+        self.look_button.configure(state="normal")
+        self._remove_last_line()
+        error_message = text or "Je n'ai rien vu."
+        self._append_line(f"Jarvis: {error_message}", "jarvis")
+
     def _remove_last_line(self) -> None:
         self.history.configure(state="normal")
         self.history.delete("end-2l", "end-1l")
@@ -202,11 +249,13 @@ class JarvisGUI:
         try:
             while True:
                 item = self.response_queue.get_nowait()
-                if isinstance(item, tuple) and item[0] == "speech_status":
+                if isinstance(item, tuple) and item[0] in {"speech_status", "vision_status"}:
                     self._remove_last_line()
                     self._append_line(item[1], "jarvis")
                 elif isinstance(item, tuple) and item[0] == "speech_result":
                     self._handle_speech_result(item[1])
+                elif isinstance(item, tuple) and item[0] == "vision_result":
+                    self._handle_vision_result(item[1])
                 else:
                     self._replace_thinking(item)
         except queue.Empty:

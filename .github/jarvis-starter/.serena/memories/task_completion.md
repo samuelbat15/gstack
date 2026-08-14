@@ -1,0 +1,5 @@
+A coding task on this project is done when:
+1. `python -m pytest -q` passes in full (currently 121+ tests, all offline/mocked — a red run means something in the seam-mocking convention broke, see `mem:conventions`).
+2. Any new optional dependency is added to `requirements.txt` with a comment noting known version pitfalls (see `mem:tech_stack` for the two known ones: ctranslate2 pin, numpy<2 constraint).
+3. Any new CLI command is added to `HELP_TEXT` in `jarvis.py` (see `mem:conventions`).
+4. Real hardware/network capabilities (webcam, mic, Gmail OAuth, ElevenLabs) are smoke-tested against the real device/API at least once before declaring the feature done — the mocked test suite alone has previously missed a real ctranslate2 segfault and a moondream prompt-format bug that only appeared with real inference.

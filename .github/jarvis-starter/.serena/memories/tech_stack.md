@@ -1,0 +1,10 @@
+- Python 3.11 (Anaconda base env on this machine — NOT an isolated venv; see pin note below).
+- stdlib-only core (`http.server`, `urllib`, `sqlite3`-free flat-file storage); optional deps only for voice/vision/Gmail, imported lazily inside functions so the app runs with zero optional deps installed.
+- Local LLM: Ollama, default model `qwen2.5:7b` (only model reliably able to follow the agentic loop's strict JSON tool-call protocol; smaller models like 3b/1b break format compliance).
+- STT: `faster-whisper` (model size configurable). **Pinned `ctranslate2==4.4.0`** — 4.8.1 segfaults on model load on this Windows/CPU setup (verified 2026-07-17). Do not let this float upward without re-testing model load first.
+- TTS: ElevenLabs (`elevenlabs` SDK) primary, `pyttsx3` (Windows SAPI) fallback.
+- Vision: `opencv-python` for capture + Ollama `moondream` model for description.
+  - `opencv-python` requires `numpy>=2`; the rest of this machine's shared Anaconda env (pandas/matplotlib/scipy/streamlit) requires `numpy<2`. Both work in practice with `numpy<2,>=1.23.2` installed (opencv's own runtime doesn't hard-require 2.x despite its metadata) — if numpy ever gets bumped to 2.x here, pandas/matplotlib/scipy break immediately; downgrade back rather than chasing the opencv warning.
+  - moondream prompts must stay short/single-instruction — compound prompts ("describe + in French + concisely") produce degenerate output ("!!!"); it also does not reliably follow language instructions (answers in English regardless of prompt language).
+- Gmail: `google-api-python-client`, `google-auth-httplib2`, `google-auth-oauthlib`; OAuth "Desktop app" client type, scope `gmail.readonly` only.
+- Test runner: `pytest` (see `mem:task_completion`).

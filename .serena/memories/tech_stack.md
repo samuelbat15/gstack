@@ -1,0 +1,5 @@
+- Bun (not npm/node) as package manager and test runner — `bun install`, `bun test`, `bun run <script>`.
+- TypeScript throughout; `browse/` and `design/` are separate CLI sub-packages compiled to standalone Bun binaries.
+- Skills are prompt templates (`SKILL.md.tmpl` → generated `SKILL.md`), not code — see `mem:core` for the generation pipeline invariant.
+- CI: GitHub Actions (`.github/workflows/`), pre-baked Docker image with Playwright/Chromium for E2E (`.github/docker/Dockerfile.ci`).
+- `browse/` uses Playwright for headless browser automation; `design/` calls the GPT Image API.

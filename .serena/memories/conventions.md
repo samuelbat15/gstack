@@ -1,0 +1,7 @@
+Full rules in CLAUDE.md's "Commit style" / "Writing SKILL templates" / "Platform-agnostic design" sections — this is the load-bearing subset that's easy to violate by habit.
+
+- Never `git add -A` / `git add .` — stage files by explicit name only (risk of committing the tracked-but-gitignored `browse/dist/`/`design/dist/` binaries, or secrets).
+- Bisect commits: one logical change per commit (rename separate from behavior change, template changes separate from regenerated output, etc.) — see `mem:core`'s SKILL.md.tmpl invariant.
+- SKILL.md.tmpl files are prompt templates read by an LLM, not scripts: no cross-block shell variables (each bash block is a separate shell), no hardcoded branch names (use `{{BASE_BRANCH_DETECT}}` / detect dynamically), express conditionals as numbered English steps, not nested bash if/elif.
+- Skills must never hardcode project-specific commands — read the target repo's `CLAUDE.md` first, `AskUserQuestion` if missing, then persist the answer to that repo's `CLAUDE.md`.
+- Community PR guardrails: changes to `ETHOS.md`, removal of promotional/founder-voice content, or voice/tone rewrites always require explicit `AskUserQuestion` approval — never auto-merge these regardless of how reasonable the change looks.

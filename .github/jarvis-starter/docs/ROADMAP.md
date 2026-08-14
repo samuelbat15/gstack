@@ -17,14 +17,32 @@ la fois (voir `docs/superpowers/specs/` et `docs/superpowers/plans/`).
 - Boucle agentic robustifiee (dedup, 6 tours, synthese forcee)
 - Lanceur bureau (icone + `.bat`)
 
+## Deja construit (mises a jour posterieures au 2026-07-12)
+
+- Backend HTTP (`server.py`) : `/message` (confirmation en 2 temps),
+  `/status`, `/reminders`, dashboard HTML live, auth par token pour un
+  acces multi-appareil (2026-07-16).
+- Voix de synthese ElevenLabs (repli automatique sur `pyttsx3`) + voix
+  d'ecoute 100% locale (`faster-whisper`), bouton "Parler" (2026-07-16).
+- **Vision webcam ponctuelle** — photo a la demande + description via
+  Ollama `moondream`, bouton "Regarder", outil agentic `look_around`
+  (2026-07-16). Premiere tranche du point 2 ci-dessous ; pas encore de
+  flux continu/bureau/jeux/cameras IP.
+- **Buffers video/audio en parallele** — `VisionBuffer`/`AudioBuffer`
+  (2026-07-16) : webcam + micro bufferises en continu (threads
+  independants, demarrage/arret explicites), sans inference automatique
+  (trop couteux en CPU seul). Deuxieme tranche du point 2 — reste encore :
+  inference continue sur le buffer, capture d'ecran, multi-cameras.
+
 ## Ce qui manque (priorite non fixee — a decider au fur et a mesure)
 
 1. **Cerveau central / orchestrateur** — aujourd'hui Jarvis, MMA Analyzer,
    Dashboard, Graphity, Memory et Notifications sont des projets separes
    sans routage central entre eux.
 2. **Vision temps reel** — analyser en continu webcam, bureau Windows,
-   jeux, OBS, cameras IP (aujourd'hui : analyse video ponctuelle via
-   MMA Analyzer uniquement).
+   jeux, OBS, cameras IP (aujourd'hui : webcam ponctuelle sur demande
+   livree le 2026-07-16, plus l'analyse video ponctuelle via MMA
+   Analyzer). Reste : flux continu, capture d'ecran, multi-cameras.
 3. **Memoire intelligente** — recherche semantique, graphe de
    preferences/habitudes, pas juste des notes chronologiques.
 4. **Dashboard temps reel** — CPU/RAM/GPU/VRAM/temperature/reseau/logs/

@@ -59,6 +59,7 @@ Outils autorises:
 - create_reminder {"when": "dans 20 minutes | a 15h00", "text": "texte du rappel"}
 - look_around {"question": "ce que tu veux savoir de la scene (optionnel)"}
 - check_gmail {"query": "requete de recherche Gmail (optionnel, vide = mails recents)"}
+- check_stx_system {}
 - write_file {"path": "chemin/fichier", "content": "contenu texte du fichier"}
 - run_command {"command": "commande shell a executer"}
 
@@ -99,6 +100,7 @@ Commandes locales:
 - arrete observation
 - mail / mes mails (emails recents)
 - mail cherche <requete Gmail>
+- stx (statut de STX_SYSTEM - lecture seule, aucune tache declenchee)
 - execute <commande shell>
 - ecris <chemin> : <contenu>
 
@@ -208,6 +210,7 @@ def looks_like_local_command(text: str) -> bool:
         "arrete observation",
         "mail",
         "mes mails",
+        "stx",
     }
     return command in exact_commands or command.startswith(
         (
@@ -844,6 +847,10 @@ class Jarvis:
             self.speaker.say(self.search_emails(query))
             return True
 
+        if command == "stx":
+            self.speaker.say(self.describe_stx_status())
+            return True
+
         if command.startswith("cherche "):
             query = cleaned_text.split(" ", 1)[1].strip()
             if query:
@@ -1022,6 +1029,11 @@ class Jarvis:
         if not query:
             return "mail cherche: requete manquante."
         return gmail_client.describe_email_search(query)
+
+    def describe_stx_status(self) -> str:
+        import stx_client
+
+        return stx_client.describe_status()
 
     def start_vision_buffer(self) -> str:
         import vision
@@ -1243,6 +1255,9 @@ Observations deja recues:
             query = as_text(args.get("query"))
             result = self.search_emails(query) if query else self.describe_recent_emails()
             return "check_gmail: " + result
+
+        if tool_name == "check_stx_system":
+            return "check_stx_system: " + self.describe_stx_status()
 
         if tool_name == "write_file":
             path = as_text(args.get("path"))

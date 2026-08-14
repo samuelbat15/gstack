@@ -139,6 +139,13 @@ plus de lenteur, force un modele Whisper plus gros :
 $env:JARVIS_WHISPER_MODEL = "small"
 ```
 
+**Si Python crashe (segmentation fault, pas d'exception) au chargement du
+modele Whisper** : c'est une regression connue de `ctranslate2 4.8.1` sur
+certains CPU Windows (reproduit le 2026-07-16 avec `compute_type`
+int8/float32/default). `requirements.txt` epingle `ctranslate2==4.4.0` qui
+corrige le crash - verifie avec `pip show ctranslate2` si le probleme
+revient malgre tout.
+
 ### Voix de synthese (reponses parlees)
 
 Par defaut, Jarvis parle avec `pyttsx3` (voix Windows SAPI — locale mais
@@ -153,6 +160,101 @@ Choisis une voix sur [elevenlabs.io/app/voice-library](https://elevenlabs.io/app
 et copie son `voice_id`. Si la cle/voix sont absentes, ou si l'appel
 ElevenLabs echoue (reseau, quota), Jarvis bascule automatiquement sur
 `pyttsx3` — aucune configuration cassee ne bloque les reponses.
+
+## Vision webcam ponctuelle
+
+Jarvis peut prendre une seule photo (jamais de flux continu ni de
+surveillance en arriere-plan) et la decrire via un modele vision local
+(Ollama `moondream` par defaut, aucune cle requise). Toujours a la
+demande explicite — clic sur "Regarder" ou commande texte, jamais
+declenche automatiquement.
+
+```powershell
+python jarvis.py --text
+> regarde
+> regarde qu'est-ce qu'il y a sur mon bureau
+```
+
+Dans la fenetre graphique, le bouton "Regarder" fait la meme chose :
+capture, analyse ("Jarvis regarde..." puis "Analyse..."), affiche la
+description. La boucle `agent <objectif>` peut aussi invoquer la vision
+elle-meme via l'outil `look_around` quand c'est pertinent pour l'objectif.
+
+**Limites connues de `moondream`** (1.6B, verifie le 2026-07-16) : repond
+en anglais meme si la question est posee en francais (ne suit pas
+fiablement les instructions de langue), et peut halluciner des details
+(ex. un second objet qui n'existe pas). Un prompt compose ("decris + en
+francais + concis") le fait deraper completement (reponse degeneree type
+"!!!") — le prompt par defaut reste volontairement court pour cette
+raison. Un modele plus gros (llama3.2-vision, etc.) donnerait de
+meilleurs resultats au prix de plus de RAM/latence.
+
+### Buffers video/audio (arriere-plan, en parallele)
+
+Au-dela du "regarde"/"Parler" ponctuels, `buffer video demarre` et
+`buffer audio demarre` ouvrent la webcam/le micro en continu et gardent
+les N derniers instants (frames JPEG / segments audio bruts) dans un
+buffer tournant — les deux peuvent tourner simultanement (threads
+independants, peripheriques distincts). **Aucune inference automatique**
+(trop couteux en continu sur CPU seul) : c'est juste un stockage recent,
+pas encore le "flux continu analyse" du roadmap (point 2).
+
+```text
+buffer video demarre     # capture toutes les 2s, garde les 10 dernieres frames
+buffer audio demarre     # segments de 3s, garde les 10 derniers
+buffer demarre           # les deux en parallele
+buffer statut            # etat + nombre d'elements bufferises
+buffer arrete            # libere webcam ET micro
+```
+
+Toujours explicite (jamais lance au demarrage de Jarvis) et toujours
+arrete proprement (webcam/micro liberes) a `quitte`/Ctrl+C.
+
+**Environnement Anaconda partage** : `opencv-python` declare `numpy>=2`
+mais l'installation peut faire remonter numpy et casser `pandas`/
+`matplotlib`/`scipy` dans un environnement partage avec d'autres projets
+data-science. Si ca arrive : `pip install "numpy<2,>=1.23.2"` restaure la
+compatibilite (`opencv-python` continue de fonctionner malgre
+l'avertissement pip). Une venv dediee (`python -m venv .venv`, voir plus
+haut) evite ce risque completement.
+
+## Gmail (lecture seule)
+
+Roadmap point 13 (`skills/gmail`). Lecture seule a dessein — pas d'envoi,
+de suppression ni de modification de labels dans cette premiere tranche.
+OAuth Google, pas de cle API classique.
+
+**Configuration (une seule fois, cote Google Cloud Console) :**
+
+1. Cree un projet sur [console.cloud.google.com](https://console.cloud.google.com/projectcreate)
+2. Active l'API Gmail : [console.cloud.google.com/apis/enableflow;apiid=gmail.googleapis.com](https://console.cloud.google.com/apis/enableflow;apiid=gmail.googleapis.com)
+3. Configure l'ecran de consentement OAuth : **Google Auth platform > Branding**
+   — nom de l'app, email de support. **Audience : "External"** (pas
+   "Internal" — ca ne marche que pour un compte Google Workspace, pas un
+   Gmail personnel). En mode "Testing", ajoute ton propre email comme
+   utilisateur de test.
+4. Cree les identifiants : **Google Auth platform > Clients > Create
+   Client**, type **"Desktop app"**, telecharge le JSON.
+5. Renomme le fichier telecharge en `credentials.json`, place-le a la
+   racine de `jarvis-starter/` (a cote de `jarvis.py`).
+
+**Utilisation :**
+
+```powershell
+python jarvis.py --text
+> mail
+> mail cherche facture
+```
+
+Premiere execution : un navigateur s'ouvre pour le consentement Google.
+Une fois accepte, `token.json` est cree et reutilise/rafraichi
+automatiquement — plus besoin de repasser par le navigateur ensuite.
+
+La boucle `agent <objectif>` peut aussi consulter Gmail elle-meme via
+l'outil `check_gmail` quand c'est pertinent pour l'objectif.
+
+**Ne commit jamais `credentials.json` ni `token.json`** — ajoutes au
+`.gitignore` du projet ; verifie quand meme avant tout commit.
 
 ## Ajouter des actions
 

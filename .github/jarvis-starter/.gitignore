@@ -3,3 +3,5 @@ data/
 __pycache__/
 *.pyc
 .superpowers/
+credentials.json
+token.json
